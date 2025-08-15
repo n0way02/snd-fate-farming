@@ -11,18 +11,19 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 - **Collection FATEs**: Handles NPC interaction and item collection automatically
 
 ### 🆕 Multi-Zone Support
-- **Automatic Zone Cycling**: Seamlessly switches between Dawntrail zones when no FATEs are available
+- **Automatic Zone Cycling**: Seamlessly switches between zones when no FATEs are available
+- **Expansion-Aware**: Automatically detects your current expansion and cycles within it
 - **Intelligent Fallback**: Uses instance changing as backup if zone switching fails
 - **Configurable**: Easy on/off toggle in SND settings
 - **Immediate Response**: Triggers instantly when "No eligible fates found"
 
-**Supported Zones (Dawntrail Only):**
-- Urqopacha
-- Kozama'uka
-- Yak T'el
-- Shaaloani
-- Heritage Found
-- Living Memory
+**Supported Expansions & Zones:**
+- **A Realm Reborn (ARR)**: Middle La Noscea, Lower La Noscea, Central Thanalan, Eastern Thanalan, Southern Thanalan, Coerthas Central Highlands, Mor Dhona, Outer La Noscea
+- **Heavensward (HW)**: Coerthas Western Highlands, The Dravanian Forelands, The Dravanian Hinterlands, The Churning Mists, The Sea of Clouds, Azys Lla
+- **Stormblood (SB)**: The Fringes, The Ruby Sea, Yanxia, The Peaks, The Lochs, The Azim Steppe
+- **Shadowbringers (ShB)**: Lakeland, Kholusia, Amh Araeng, Il Mheg, The Rak'tika Greatwood, The Tempest
+- **Endwalker (EW)**: Labyrinthos, Thavnair, Garlemald, Mare Lamentorum, Ultima Thule, Elpis
+- **Dawntrail (DT)**: Urqopacha, Kozama'uka, Yak T'el, Shaaloani, Heritage Found, Living Memory
 
 ### Automation Features
 - **Bicolor Gemstone Management**: Auto-purchase vouchers when near cap (1400/1500)
@@ -87,18 +88,19 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 
 ## Usage
 
-1. **Navigate to any Dawntrail zone** (required for multi-zone)
+1. **Navigate to any supported expansion zone** (ARR, HW, SB, ShB, EW, or DT)
 2. **Start the script** in Something Need Doing
 3. **Enable Multi-Zone** in settings if desired
 4. The script will automatically:
+   - Detect your current expansion
    - Find and complete FATEs in current zone
-   - Switch to next zone when no FATEs available
+   - Switch to next zone within the same expansion when no FATEs available
    - Handle all maintenance tasks (repair, retainers, etc.)
-   - Continue cycling through all Dawntrail zones
+   - Continue cycling through all zones in that expansion
 
 ## Important Notes
 
-⚠️ **Multi-Zone Support**: The multi-zone feature **only works in Dawntrail zones**. The script will function normally in other zones but won't automatically switch zones.
+⚠️ **Multi-Zone Support**: The multi-zone feature works with **ALL major expansions**. The script automatically detects which expansion you're in and cycles through zones within that expansion only.
 
 ⚠️ **Plugin Dependencies**: Ensure all required plugins are installed and updated for optimal performance.
 
@@ -113,10 +115,11 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 ## Version History
 
 ### v3.1.0 - Multi-Zone Update
-- Added Multi-Zone Farming option for Dawntrail zones
+- Added Multi-Zone Farming option for ALL expansions (ARR, HW, SB, ShB, EW, DT)
+- Automatic expansion detection and zone cycling within the same expansion
 - Multi-zone triggers immediately when "No eligible fates found"
 - Priority system ensures multi-zone doesn't interfere with retainers/repair/exchanges
-- Fixed bugs where script would stop in DT zones with no available FATEs
+- Fixed bugs where script would stop when no available FATEs in expansion zones
 
 ### Previous Versions
 See changelog in script for complete version history.

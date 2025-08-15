@@ -133,7 +133,7 @@ configs:
   Multi-Zone Farming:
     default: false
     type: boolean
-    description: Enable automatic zone switching when no FATEs are available. Cycles through Urqopacha > Kozama'uka > Yak T'el > Shaaloani > Heritage Found > Living Memory
+    description: Enable automatic zone switching when no FATEs are available. Automatically detects your current expansion and cycles through all zones within that expansion (ARR, HW, SB, ShB, EW, DT)
 [[End Metadata]]
 --]=====]
 --[[
@@ -143,10 +143,11 @@ configs:
 ********************************************************************************
 
     -> 3.1.0    by: n0way02 (https://ko-fi.com/n0way02)    
-                Added Multi-Zone Farming option to automatically cycle through DT zones when no FATEs available.
+                Added Multi-Zone Farming option to automatically cycle through zones when no FATEs available.
+                Supports ALL expansions: ARR, Heavensward, Stormblood, Shadowbringers, Endwalker, and Dawntrail.
+                Automatically detects current expansion and cycles only within that expansion's zones.
                 Multi-zone triggers immediately when "No eligible fates found" and takes priority over instance changes.
-                Fixed a bug where the script would stop if it was in a DT zone but no FATEs were available.
-                Fixed a bug where the script would stop if it was in a DT zone but no FATEs were available.
+                Fixed bugs where the script would stop when no FATEs were available in expansion zones.
     -> 3.0.9    By Allison.
                 Fix standing in place after fate finishes bug.
                 Add config options for Rotation Plugin and Dodging Plugin (Fixed bug when multiple solvers present at once)
@@ -3185,14 +3186,89 @@ EnableChangeInstance = Config.Get("Change instances if no FATEs?")
 WaitIfBonusBuff = true          --Don't change instances if you have the Twist of Fate bonus buff
 NumberOfInstances = 2
 EnableMultiZone = Config.Get("Multi-Zone Farming")
-MultiZoneOrder = {
-    { fateZoneName = "Urqopacha", zoneId = 1187 },
-    { fateZoneName = "Kozama'uka", zoneId = 1188 },
-    { fateZoneName = "Yak T'el", zoneId = 1189 },
-    { fateZoneName = "Shaaloani", zoneId = 1190 },
-    { fateZoneName = "Heritage Found", zoneId = 1191 },
-    { fateZoneName = "Living Memory", zoneId = 1192 }
+
+-- Multi-Zone Orders by Expansion
+MultiZoneExpansions = {
+    -- A Realm Reborn (ARR) - Zones 134-180
+    ARR = {
+        { fateZoneName = "Middle La Noscea", zoneId = 134 },
+        { fateZoneName = "Lower La Noscea", zoneId = 135 },
+        { fateZoneName = "Central Thanalan", zoneId = 141 },
+        { fateZoneName = "Eastern Thanalan", zoneId = 145 },
+        { fateZoneName = "Southern Thanalan", zoneId = 146 },
+        { fateZoneName = "Coerthas Central Highlands", zoneId = 155 },
+        { fateZoneName = "Mor Dhona", zoneId = 156 },
+        { fateZoneName = "Outer La Noscea", zoneId = 180 }
+    },
+    -- Heavensward (HW) - Zones 397-402
+    HW = {
+        { fateZoneName = "Coerthas Western Highlands", zoneId = 397 },
+        { fateZoneName = "The Dravanian Forelands", zoneId = 398 },
+        { fateZoneName = "The Dravanian Hinterlands", zoneId = 399 },
+        { fateZoneName = "The Churning Mists", zoneId = 400 },
+        { fateZoneName = "The Sea of Clouds", zoneId = 401 },
+        { fateZoneName = "Azys Lla", zoneId = 402 }
+    },
+    -- Stormblood (SB) - Zones 612-622
+    SB = {
+        { fateZoneName = "The Fringes", zoneId = 612 },
+        { fateZoneName = "The Ruby Sea", zoneId = 613 },
+        { fateZoneName = "Yanxia", zoneId = 614 },
+        { fateZoneName = "The Peaks", zoneId = 620 },
+        { fateZoneName = "The Lochs", zoneId = 621 },
+        { fateZoneName = "The Azim Steppe", zoneId = 622 }
+    },
+    -- Shadowbringers (ShB) - Zones 813-818
+    ShB = {
+        { fateZoneName = "Lakeland", zoneId = 813 },
+        { fateZoneName = "Kholusia", zoneId = 814 },
+        { fateZoneName = "Amh Araeng", zoneId = 815 },
+        { fateZoneName = "Il Mheg", zoneId = 816 },
+        { fateZoneName = "The Rak'tika Greatwood", zoneId = 817 },
+        { fateZoneName = "The Tempest", zoneId = 818 }
+    },
+    -- Endwalker (EW) - Zones 956-961
+    EW = {
+        { fateZoneName = "Labyrinthos", zoneId = 956 },
+        { fateZoneName = "Thavnair", zoneId = 957 },
+        { fateZoneName = "Garlemald", zoneId = 958 },
+        { fateZoneName = "Mare Lamentorum", zoneId = 959 },
+        { fateZoneName = "Ultima Thule", zoneId = 960 },
+        { fateZoneName = "Elpis", zoneId = 961 }
+    },
+    -- Dawntrail (DT) - Zones 1187-1192
+    DT = {
+        { fateZoneName = "Urqopacha", zoneId = 1187 },
+        { fateZoneName = "Kozama'uka", zoneId = 1188 },
+        { fateZoneName = "Yak T'el", zoneId = 1189 },
+        { fateZoneName = "Shaaloani", zoneId = 1190 },
+        { fateZoneName = "Heritage Found", zoneId = 1191 },
+        { fateZoneName = "Living Memory", zoneId = 1192 }
+    }
 }
+
+-- Determine which expansion the current zone belongs to
+function GetExpansionFromZoneId(zoneId)
+    if zoneId >= 134 and zoneId <= 180 then
+        return "ARR"
+    elseif zoneId >= 397 and zoneId <= 402 then
+        return "HW"
+    elseif zoneId >= 612 and zoneId <= 622 then
+        return "SB"
+    elseif zoneId >= 813 and zoneId <= 818 then
+        return "ShB"
+    elseif zoneId >= 956 and zoneId <= 961 then
+        return "EW"
+    elseif zoneId >= 1187 and zoneId <= 1192 then
+        return "DT"
+    else
+        return nil -- Unknown expansion
+    end
+end
+
+-- Current expansion and zone tracking
+CurrentExpansion = nil
+MultiZoneOrder = {}
 CurrentMultiZoneIndex = 1
 ShouldExchangeBicolorGemstones = Config.Get("Exchange bicolor gemstones?")
 ItemToPurchase = Config.Get("Exchange bicolor gemstones for")
@@ -3287,15 +3363,30 @@ if SelectedZone.zoneName ~= "" and Echo == "All" then
 end
 Dalamud.Log("[FATE] Farming Start for "..SelectedZone.zoneName)
 
--- Initialize multi-zone index based on current zone
+-- Initialize multi-zone based on current expansion
 if EnableMultiZone then
-    for i, zone in ipairs(MultiZoneOrder) do
-        if zone.zoneId == SelectedZone.zoneId then
-            CurrentMultiZoneIndex = i
-            break
+    CurrentExpansion = GetExpansionFromZoneId(SelectedZone.zoneId)
+    if CurrentExpansion and MultiZoneExpansions[CurrentExpansion] then
+        MultiZoneOrder = MultiZoneExpansions[CurrentExpansion]
+        -- Find current zone index within the expansion
+        for i, zone in ipairs(MultiZoneOrder) do
+            if zone.zoneId == SelectedZone.zoneId then
+                CurrentMultiZoneIndex = i
+                break
+            end
         end
+        Dalamud.Log("[FATE] Multi-Zone enabled for "..CurrentExpansion.." expansion with "..#MultiZoneOrder.." zones")
+        Dalamud.Log("[FATE] Current zone: "..SelectedZone.zoneName.." (Index: "..CurrentMultiZoneIndex..")")
+        if Echo == "All" then
+            yield("/echo [FATE] Multi-Zone: "..CurrentExpansion.." expansion detected ("..#MultiZoneOrder.." zones)")
+        end
+    else
+        Dalamud.Log("[FATE] Multi-Zone enabled but current zone not supported for multi-zone")
+        if Echo == "All" then
+            yield("/echo [FATE] Multi-Zone: Current zone not supported for multi-zone cycling")
+        end
+        EnableMultiZone = false -- Disable if not in supported expansion
     end
-    Dalamud.Log("[FATE] Multi-Zone enabled. Current zone index: "..CurrentMultiZoneIndex.." ("..MultiZoneOrder[CurrentMultiZoneIndex].fateZoneName..")")
 end
 
 
