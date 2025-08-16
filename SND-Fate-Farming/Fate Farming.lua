@@ -965,7 +965,22 @@ function SetMapFlag(zoneId, position)
 end
 
 function GetZoneInstance()
-    return InstancedContent.PublicInstance.InstanceId
+    local instanceId = nil
+    
+    -- Try multiple possible APIs for instance detection
+    if InstancedContent and InstancedContent.PublicInstance then
+        instanceId = InstancedContent.PublicInstance.InstanceId
+        Dalamud.Log("[FATE] GetZoneInstance() via InstancedContent.PublicInstance.InstanceId: "..tostring(instanceId))
+    elseif Svc.ClientState and Svc.ClientState.LocalPlayer then
+        -- Try alternative method if available
+        instanceId = 1 -- Default to instance 1 if we can't detect
+        Dalamud.Log("[FATE] GetZoneInstance() fallback to default instance: "..tostring(instanceId))
+    else
+        instanceId = 0 -- No instance support
+        Dalamud.Log("[FATE] GetZoneInstance() no instance support detected: "..tostring(instanceId))
+    end
+    
+    return instanceId or 0
 end
 
 function GetTargetName()
@@ -1591,6 +1606,7 @@ function ChangeToNextZone()
 end
 
 function ChangeInstance()
+    Dalamud.Log("[FATE] ChangeInstance() called - SuccessiveInstanceChanges: "..SuccessiveInstanceChanges..", NumberOfInstances: "..NumberOfInstances)
     if SuccessiveInstanceChanges >= NumberOfInstances then
         if EnableMultiZone then
             -- Try to change zones instead of stopping
@@ -2655,7 +2671,10 @@ function Ready()
             end
             -- If zone change failed, fall through to instance change
         end
-        if EnableChangeInstance and GetZoneInstance() > 0 and not shouldWaitForBonusBuff then
+        local currentInstance = GetZoneInstance()
+        Dalamud.Log("[FATE] Instance check - EnableChangeInstance: "..tostring(EnableChangeInstance)..", ZoneInstance: "..tostring(currentInstance)..", shouldWaitForBonusBuff: "..tostring(shouldWaitForBonusBuff))
+        if EnableChangeInstance and currentInstance > 0 and not shouldWaitForBonusBuff then
+            Dalamud.Log("[FATE] Conditions met for instance change!")
             State = CharacterState.changingInstances
             Dalamud.Log("[FATE] State Change: ChangingInstances")
             return
