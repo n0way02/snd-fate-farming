@@ -2661,15 +2661,6 @@ function Ready()
         State = CharacterState.summonChocobo
     elseif not Dalamud.Log("[FATE] Ready -> NextFate nil") and NextFate == nil then
         if EnableMultiZone and not shouldWaitForBonusBuff then
-            -- Multi-zone: try to change zone directly when no fates
-            Dalamud.Log("[FATE] Multi-Zone: No FATEs found, attempting zone change")
-            if Echo == "All" then
-                yield("/echo [FATE] Multi-Zone: No eligible FATEs found, switching zones")
-            end
-            if ChangeToNextZone() then
-                return
-            end
-            -- If zone change failed, fall through to instance change
         end
         local currentInstance = GetZoneInstance()
         Dalamud.Log("[FATE] Instance check - EnableChangeInstance: "..tostring(EnableChangeInstance)..", ZoneInstance: "..tostring(currentInstance)..", shouldWaitForBonusBuff: "..tostring(shouldWaitForBonusBuff))
@@ -2678,6 +2669,16 @@ function Ready()
             State = CharacterState.changingInstances
             Dalamud.Log("[FATE] State Change: ChangingInstances")
             return
+        end
+    -- If instance change failed, try zone change if Multi-Zone is enabled
+        if EnableMultiZone and not shouldWaitForBonusBuff then
+            Dalamud.Log("[FATE] Multi-Zone: No FATEs found, attempting zone change")
+            if Echo == "All" then
+                yield("/echo [FATE] Multi-Zone: No eligible FATEs found, switching zones")
+            end
+            if ChangeToNextZone() then
+                return
+            end
         elseif CompanionScriptMode and not shouldWaitForBonusBuff then
             if WaitingForFateRewards == nil then
                 StopScript = true
