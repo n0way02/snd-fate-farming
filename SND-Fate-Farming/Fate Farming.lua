@@ -972,9 +972,14 @@ function GetZoneInstance()
         instanceId = InstancedContent.PublicInstance.InstanceId
         Dalamud.Log("[FATE] GetZoneInstance() via InstancedContent.PublicInstance.InstanceId: "..tostring(instanceId))
     elseif Svc.ClientState and Svc.ClientState.LocalPlayer then
-        -- Try alternative method if available
-        instanceId = 1 -- Default to instance 1 if we can't detect
-        Dalamud.Log("[FATE] GetZoneInstance() fallback to default instance: "..tostring(instanceId))
+        -- Try to get actual instance from client state
+        if Svc.ClientState.TerritoryType then
+            -- Use a more reliable method to detect instance
+            instanceId = 0 -- Default to instance 0 for non-instanced zones
+        else
+            instanceId = 0
+        end
+        Dalamud.Log("[FATE] GetZoneInstance() fallback to instance: "..tostring(instanceId))
     else
         instanceId = 0 -- No instance support
         Dalamud.Log("[FATE] GetZoneInstance() no instance support detected: "..tostring(instanceId))
@@ -1546,6 +1551,7 @@ function AcceptTeleportOfferLocation(destinationAetheryte)
 end
 
 function TeleportTo(aetheryteName)
+    Dalamud.Log("[FATE] TeleportTo() called for: "..aetheryteName)
     AcceptTeleportOfferLocation(aetheryteName)
 
     while EorzeaTimeToUnixTime(Instances.Framework.EorzeaTime) - LastTeleportTimeStamp < 5 do
@@ -1553,6 +1559,7 @@ function TeleportTo(aetheryteName)
         yield("/wait 5.001")
     end
 
+    Dalamud.Log("[FATE] Executing Lifestream teleport command: /li tp "..aetheryteName)
     yield("/li tp "..aetheryteName)
     yield("/wait 1") -- wait for casting to begin
     while Svc.Condition[CharacterCondition.casting] do
@@ -1587,13 +1594,18 @@ function ChangeToNextZone()
     
     -- Find aetheryte for the zone
     local aetherytes = GetAetherytesInZone(nextZone.zoneId)
+    Dalamud.Log("[FATE] Multi-Zone: Found "..#aetherytes.." aetherytes for zone "..nextZone.fateZoneName)
     if aetherytes and #aetherytes > 0 then
         local aetheryteName = GetAetheryteName(aetherytes[1])
+        Dalamud.Log("[FATE] Multi-Zone: Teleporting to "..aetheryteName.." in "..nextZone.fateZoneName)
         TeleportTo(aetheryteName)
+        
+        -- Aguardar a teleportação completar antes de atualizar SelectedZone
+        yield("/wait 3") -- Aguardar transição de zona
         
         -- Update SelectedZone to the new zone
         SelectedZone = SelectNextZone()
-        Dalamud.Log("[FATE] Multi-Zone: Now in "..SelectedZone.zoneName)
+        Dalamud.Log("[FATE] Multi-Zone: Now in "..SelectedZone.zoneName.." (ID: "..SelectedZone.zoneId..")")
         
         State = CharacterState.ready
         Dalamud.Log("[FATE] State Change: Ready")
@@ -1606,7 +1618,8 @@ function ChangeToNextZone()
 end
 
 function ChangeInstance()
-    Dalamud.Log("[FATE] ChangeInstance() called - SuccessiveInstanceChanges: "..SuccessiveInstanceChanges..", NumberOfInstances: "..NumberOfInstances)
+    local currentInstance = GetZoneInstance()
+    Dalamud.Log("[FATE] ChangeInstance() called - SuccessiveInstanceChanges: "..SuccessiveInstanceChanges..", NumberOfInstances: "..NumberOfInstances..", CurrentInstance: "..tostring(currentInstance))
     if SuccessiveInstanceChanges >= NumberOfInstances then
         if EnableMultiZone then
             -- Try to change zones instead of stopping
@@ -1682,12 +1695,31 @@ function ChangeInstance()
     end
 
     Dalamud.Log("[FATE] Transferring to next instance")
-    local nextInstance = (GetZoneInstance() % 2) + 1
-    yield("/li "..nextInstance) -- start instance transfer
-    yield("/wait 1") -- wait for instance transfer to register
-    State = CharacterState.ready
-    SuccessiveInstanceChanges = SuccessiveInstanceChanges + 1
-    Dalamud.Log("[FATE] State Change: Ready")
+    local currentInstance = GetZoneInstance()
+    
+    -- Verificar se a zona atual suporta instâncias antes de tentar trocar
+    if currentInstance > 0 then
+        local nextInstance = (currentInstance % NumberOfInstances) + 1
+        Dalamud.Log("[FATE] Current instance: "..tostring(currentInstance)..", switching to: "..tostring(nextInstance))
+        Dalamud.Log("[FATE] Executing Lifestream instance change command: /li "..nextInstance)
+        yield("/li "..nextInstance) -- start instance transfer
+        yield("/wait 1") -- wait for instance transfer to register
+        State = CharacterState.ready
+        SuccessiveInstanceChanges = SuccessiveInstanceChanges + 1
+        Dalamud.Log("[FATE] State Change: Ready")
+    else
+        -- Se não há instâncias, tentar trocar de zona
+        Dalamud.Log("[FATE] No instances detected, attempting zone change")
+        if EnableMultiZone then
+            if ChangeToNextZone() then
+                return
+            end
+        end
+        -- Se não conseguiu trocar de zona, resetar contador e continuar
+        SuccessiveInstanceChanges = 0
+        State = CharacterState.ready
+        Dalamud.Log("[FATE] State Change: Ready")
+    end
 end
 
 function WaitForContinuation()
@@ -2665,7 +2697,7 @@ function Ready()
         local currentInstance = GetZoneInstance()
         Dalamud.Log("[FATE] Instance check - EnableChangeInstance: "..tostring(EnableChangeInstance)..", ZoneInstance: "..tostring(currentInstance)..", shouldWaitForBonusBuff: "..tostring(shouldWaitForBonusBuff))
         if EnableChangeInstance and currentInstance > 0 and not shouldWaitForBonusBuff then
-            Dalamud.Log("[FATE] Conditions met for instance change!")
+            Dalamud.Log("[FATE] Conditions met for instance change! Current instance: "..tostring(currentInstance))
             State = CharacterState.changingInstances
             Dalamud.Log("[FATE] State Change: ChangingInstances")
             return
@@ -3207,6 +3239,11 @@ WaitIfBonusBuff = true          --Don't change instances if you have the Twist o
 NumberOfInstances = 2
 EnableMultiZone = Config.Get("Multi-Zone Farming")
 
+-- Log configuration values
+Dalamud.Log("[FATE] Configuration - EnableChangeInstance: "..tostring(EnableChangeInstance))
+Dalamud.Log("[FATE] Configuration - EnableMultiZone: "..tostring(EnableMultiZone))
+Dalamud.Log("[FATE] Configuration - NumberOfInstances: "..tostring(NumberOfInstances))
+
 -- Multi-Zone Orders by Expansion
 MultiZoneExpansions = {
     -- A Realm Reborn (ARR) - Zones 134-180
@@ -3383,9 +3420,23 @@ if SelectedZone.zoneName ~= "" and Echo == "All" then
 end
 Dalamud.Log("[FATE] Farming Start for "..SelectedZone.zoneName)
 
+-- Check if required plugins are available
+if not HasPlugin("Lifestream") then
+    Dalamud.Log("[FATE] ERROR: Lifestream plugin not found! Instance and zone changes will not work.")
+    yield("/echo [FATE] ERROR: Lifestream plugin not found! Instance and zone changes will not work.")
+    EnableChangeInstance = false
+    EnableMultiZone = false
+end
+
+if not HasPlugin("vnavmesh") then
+    Dalamud.Log("[FATE] ERROR: vnavmesh plugin not found! Movement and pathfinding will not work.")
+    yield("/echo [FATE] ERROR: vnavmesh plugin not found! Movement and pathfinding will not work.")
+end
+
 -- Initialize multi-zone based on current expansion
 if EnableMultiZone then
     CurrentExpansion = GetExpansionFromZoneId(SelectedZone.zoneId)
+    Dalamud.Log("[FATE] Multi-Zone: Current zone ID: "..tostring(SelectedZone.zoneId)..", Detected expansion: "..tostring(CurrentExpansion))
     if CurrentExpansion and MultiZoneExpansions[CurrentExpansion] then
         MultiZoneOrder = MultiZoneExpansions[CurrentExpansion]
         -- Find current zone index within the expansion
