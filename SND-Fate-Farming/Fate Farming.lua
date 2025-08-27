@@ -1577,12 +1577,15 @@ end
 
 function ChangeToNextZone()
     if not EnableMultiZone then
+        Dalamud.Log("[FATE] Multi-Zone: Disabled, returning false")
         return false
     end
     
     Dalamud.Log("[FATE] Multi-Zone: Switching to next zone")
+    Dalamud.Log("[FATE] Multi-Zone: CurrentMultiZoneIndex = " .. tostring(CurrentMultiZoneIndex) .. ", Total zones = " .. tostring(#MultiZoneOrder))
     CurrentMultiZoneIndex = (CurrentMultiZoneIndex % #MultiZoneOrder) + 1
     local nextZone = MultiZoneOrder[CurrentMultiZoneIndex]
+    Dalamud.Log("[FATE] Multi-Zone: Next zone index = " .. tostring(CurrentMultiZoneIndex) .. ", Zone = " .. tostring(nextZone.fateZoneName))
     
     Dalamud.Log("[FATE] Multi-Zone: Moving to "..nextZone.fateZoneName.." (ID: "..nextZone.zoneId..")")
     if Echo == "All" then
@@ -1607,8 +1610,22 @@ function ChangeToNextZone()
         SelectedZone = SelectNextZone()
         Dalamud.Log("[FATE] Multi-Zone: Now in "..SelectedZone.zoneName.." (ID: "..SelectedZone.zoneId..")")
         
+        -- Force NextFate to be recalculated in the new zone
+        NextFate = nil
+        
+        -- Wait a bit for the zone to fully load
+        yield("/wait 2")
+        
+        -- Force immediate FATE search in the new zone
+        NextFate = SelectNextFate()
+        Dalamud.Log("[FATE] Multi-Zone: After zone change, NextFate = " .. (NextFate and NextFate.fateName or "nil"))
+        
         State = CharacterState.ready
         Dalamud.Log("[FATE] State Change: Ready")
+        
+        -- Update zone change timestamp
+        LastZoneChangeTime = os.clock()
+        
         return true
     else
         Dalamud.Log("[FATE] Multi-Zone: ERROR - No aetherytes found for "..nextZone.fateZoneName)
@@ -2481,7 +2498,7 @@ function DoFate()
     elseif not IsFateActive(CurrentFate.fateObject) or CurrentFate.fateObject.Progress == 100 then
         yield("/vnav stop")
         ClearTarget()
-        if not Dalamud.Log("[FATE] HasContintuation check") and CurrentFate.hasContinuation then
+        if CurrentFate.hasContinuation then
             LastFateEndTime = os.clock()
             State = CharacterState.waitForContinuation
             Dalamud.Log("[FATE] State Change: WaitForContinuation")
@@ -2633,6 +2650,7 @@ function Ready()
     local spiritbonded = Inventory.GetSpiritbondedItems()
 
     NextFate = SelectNextFate()
+    Dalamud.Log("[FATE] SelectNextFate() returned: " .. (NextFate and NextFate.fateName or "nil"))
     if CurrentFate ~= nil and not IsFateActive(CurrentFate.fateObject) then
         CurrentFate = nil
     end
@@ -2649,13 +2667,13 @@ function Ready()
         Dalamud.Log("[FATE] NextFate is "..NextFate.fateName)
     end
 
-    if not Dalamud.Log("[FATE] Ready -> Player.Available") and not Player.Available then
+    if not Player.Available then
         return
-    elseif not Dalamud.Log("[FATE] Ready -> Repair") and RemainingDurabilityToRepair > 0 and needsRepair.Count > 0 and
+    elseif RemainingDurabilityToRepair > 0 and needsRepair.Count > 0 and
         (not shouldWaitForBonusBuff or (SelfRepair and Inventory.GetItemCount(33916) > 0)) then
         State = CharacterState.repair
         Dalamud.Log("[FATE] State Change: Repair")
-    elseif not Dalamud.Log("[FATE] Ready -> ExtractMateria") and ShouldExtractMateria and spiritbonded.Count > 0 and Inventory.GetFreeInventorySlots() > 1 then
+    elseif ShouldExtractMateria and spiritbonded.Count > 0 and Inventory.GetFreeInventorySlots() > 1 then
         State = CharacterState.extractMateria
         Dalamud.Log("[FATE] State Change: ExtractMateria")
     elseif (not Dalamud.Log("[FATE] Ready -> WaitBonusBuff") and NextFate == nil and shouldWaitForBonusBuff) and DownTimeWaitAtNearestAetheryte then
@@ -2666,33 +2684,35 @@ function Ready()
             yield("/wait 10")
         end
         return
-    elseif not Dalamud.Log("[FATE] Ready -> ExchangingVouchers") and
-        ShouldExchangeBicolorGemstones and (BicolorGemCount >= 1400) and not shouldWaitForBonusBuff
+    elseif ShouldExchangeBicolorGemstones and (BicolorGemCount >= 1400) and not shouldWaitForBonusBuff
     then
+        Dalamud.Log("[FATE] Ready -> ExchangingVouchers: ShouldExchangeBicolorGemstones=" .. tostring(ShouldExchangeBicolorGemstones) .. ", BicolorGemCount=" .. tostring(BicolorGemCount) .. ", shouldWaitForBonusBuff=" .. tostring(shouldWaitForBonusBuff))
         if WaitingForFateRewards == nil then
             State = CharacterState.exchangingVouchers
             Dalamud.Log("[FATE] State Change: ExchangingVouchers")
         else
             Dalamud.Log("[FATE] Waiting for fate rewards: "..WaitingForFateRewards.fateId)
         end
-    elseif not Dalamud.Log("[FATE] Ready -> ProcessRetainers") and WaitingForFateRewards == nil and
+    elseif WaitingForFateRewards == nil and
         Retainers and ARRetainersWaitingToBeProcessed() and Inventory.GetFreeInventorySlots() > 1  and not shouldWaitForBonusBuff
     then
         State = CharacterState.processRetainers
         Dalamud.Log("[FATE] State Change: ProcessingRetainers")
-    elseif not Dalamud.Log("[FATE] Ready -> GC TurnIn") and ShouldGrandCompanyTurnIn and
+    elseif ShouldGrandCompanyTurnIn and
         Inventory.GetFreeInventorySlots() < InventorySlotsLeft and not shouldWaitForBonusBuff
     then
         State = CharacterState.gcTurnIn
         Dalamud.Log("[FATE] State Change: GCTurnIn")
-    elseif not Dalamud.Log("[FATE] Ready -> TeleportBackToFarmingZone") and Svc.ClientState.TerritoryType ~=  SelectedZone.zoneId then
+    elseif Svc.ClientState.TerritoryType ~=  SelectedZone.zoneId then
         TeleportTo(SelectedZone.aetheryteList[1].aetheryteName)
         return
-    elseif not Dalamud.Log("[FATE] Ready -> SummonChocobo") and ShouldSummonChocobo and GetBuddyTimeRemaining() <= ResummonChocoboTimeLeft and
+    elseif ShouldSummonChocobo and GetBuddyTimeRemaining() <= ResummonChocoboTimeLeft and
         (not shouldWaitForBonusBuff or Inventory.GetItemCount(4868) > 0) then
         State = CharacterState.summonChocobo
-    elseif not Dalamud.Log("[FATE] Ready -> NextFate nil") and NextFate == nil then
+    elseif NextFate == nil then
+        Dalamud.Log("[FATE] NextFate is nil - checking for zone/instance changes")
         if EnableMultiZone and not shouldWaitForBonusBuff then
+            Dalamud.Log("[FATE] Multi-Zone is enabled, will attempt zone change")
         end
         local currentInstance = GetZoneInstance()
         Dalamud.Log("[FATE] Instance check - EnableChangeInstance: "..tostring(EnableChangeInstance)..", ZoneInstance: "..tostring(currentInstance)..", shouldWaitForBonusBuff: "..tostring(shouldWaitForBonusBuff))
@@ -2704,12 +2724,42 @@ function Ready()
         end
     -- If instance change failed, try zone change if Multi-Zone is enabled
         if EnableMultiZone and not shouldWaitForBonusBuff then
+            local currentTime = os.clock()
+            local timeSinceLastZoneChange = currentTime - LastZoneChangeTime
+            
             Dalamud.Log("[FATE] Multi-Zone: No FATEs found, attempting zone change")
             if Echo == "All" then
                 yield("/echo [FATE] Multi-Zone: No eligible FATEs found, switching zones")
             end
-            if ChangeToNextZone() then
+            
+            -- Check if we've been trying to change zones for too long
+            if timeSinceLastZoneChange > ZoneChangeTimeout then
+                Dalamud.Log("[FATE] Multi-Zone: Zone change timeout reached, forcing zone change")
+                ZoneChangeAttempts = 0
+                LastZoneChangeTime = currentTime
+            end
+            
+            -- Try to change zones until we find one with FATEs
+            ZoneChangeAttempts = ZoneChangeAttempts + 1
+            Dalamud.Log("[FATE] Multi-Zone: Zone change attempt " .. ZoneChangeAttempts .. "/" .. MaxZoneChangeAttempts)
+            
+            if ZoneChangeAttempts >= MaxZoneChangeAttempts then
+                Dalamud.Log("[FATE] Multi-Zone: Too many zone change attempts, stopping")
+                if Echo == "All" then
+                    yield("/echo [FATE] Multi-Zone: Too many zone change attempts, stopping")
+                end
+                ZoneChangeAttempts = 0
                 return
+            end
+            
+            local zoneChangeResult = ChangeToNextZone()
+            if zoneChangeResult then
+                Dalamud.Log("[FATE] Multi-Zone: Zone change successful")
+                ZoneChangeAttempts = 0 -- Reset counter on success
+                LastZoneChangeTime = currentTime
+                return
+            else
+                Dalamud.Log("[FATE] Multi-Zone: Zone change failed")
             end
         elseif CompanionScriptMode and not shouldWaitForBonusBuff then
             if WaitingForFateRewards == nil then
@@ -2725,6 +2775,15 @@ function Ready()
             if not Svc.Condition[CharacterCondition.mounted] then
                 Mount()
             end
+            
+            -- If we've been waiting too long without FATEs, force a zone change
+            local currentTime = os.clock()
+            if EnableMultiZone and (currentTime - LastZoneChangeTime) > ZoneChangeTimeout then
+                Dalamud.Log("[FATE] Multi-Zone: Long wait without FATEs, forcing zone change")
+                LastZoneChangeTime = currentTime
+                ZoneChangeAttempts = 0
+            end
+            
             yield("/wait 10")
         end
         return
@@ -2735,7 +2794,7 @@ function Ready()
         else
             Dalamud.Log("[FATE] Waiting for fate rewards")
         end
-    elseif not Dalamud.Log("[FATE] Ready -> MovingToFate") then -- and ((CurrentFate == nil) or (GetFateProgress(CurrentFate.fateId) == 100) and NextFate ~= nil) then
+    elseif NextFate ~= nil then -- and ((CurrentFate == nil) or (GetFateProgress(CurrentFate.fateId) == 100) and NextFate ~= nil) then
         CurrentFate = NextFate
         SetMapFlag(SelectedZone.zoneId, CurrentFate.position)
         State = CharacterState.moveToFate
@@ -2746,9 +2805,16 @@ function Ready()
         GemAnnouncementLock = true
         if BicolorGemCount >= 1400 then
             yield("/echo [FATE] You're almost capped with "..tostring(BicolorGemCount).."/1500 gems! <se.3>")
+            Dalamud.Log("[FATE] Gem count warning: " .. tostring(BicolorGemCount) .. "/1500")
         else
             yield("/echo [FATE] Gems: "..tostring(BicolorGemCount).."/1500")
         end
+    end
+    
+    -- Reset the lock only when gem count changes
+    if GemAnnouncementLock and BicolorGemCount ~= LastGemCount then
+        GemAnnouncementLock = false
+        LastGemCount = BicolorGemCount
     end
 end
 
@@ -2795,6 +2861,8 @@ end
 
 function ExecuteBicolorExchange()
     CurrentFate = nil
+    
+    Dalamud.Log("[FATE] ExecuteBicolorExchange: BicolorGemCount = " .. tostring(BicolorGemCount) .. ", ShouldExchangeBicolorGemstones = " .. tostring(ShouldExchangeBicolorGemstones))
 
     if BicolorGemCount >= 1400 then
         if Addons.GetAddon("SelectYesno").Ready then
@@ -2803,7 +2871,9 @@ function ExecuteBicolorExchange()
         end
 
         if Addons.GetAddon("ShopExchangeCurrency").Ready then
-            yield("/callback ShopExchangeCurrency false 0 "..SelectedBicolorExchangeData.item.itemIndex.." "..(BicolorGemCount//SelectedBicolorExchangeData.item.price))
+            local amountToBuy = BicolorGemCount//SelectedBicolorExchangeData.item.price
+            Dalamud.Log("[FATE] ShopExchangeCurrency ready, buying " .. tostring(amountToBuy) .. " items")
+            yield("/callback ShopExchangeCurrency false 0 "..SelectedBicolorExchangeData.item.itemIndex.." "..amountToBuy)
             return
         end
 
@@ -2840,8 +2910,9 @@ function ExecuteBicolorExchange()
             end
         end
     else
+        Dalamud.Log("[FATE] BicolorGemCount < 1400, closing shop")
         if Addons.GetAddon("ShopExchangeCurrency").Ready then
-            Dalamud.Log("[FATE] Attemping to close shop window")
+            Dalamud.Log("[FATE] Attempting to close shop window")
             yield("/callback ShopExchangeCurrency true -1")
             return
         elseif Svc.Condition[CharacterCondition.occupiedInEvent] then
@@ -3327,12 +3398,19 @@ end
 CurrentExpansion = nil
 MultiZoneOrder = {}
 CurrentMultiZoneIndex = 1
+ZoneChangeAttempts = 0
+MaxZoneChangeAttempts = 10
+LastZoneChangeTime = 0
+ZoneChangeTimeout = 30 -- seconds
+LastGemCount = 0
 ShouldExchangeBicolorGemstones = Config.Get("Exchange bicolor gemstones?")
 ItemToPurchase = Config.Get("Exchange bicolor gemstones for")
-ShouldExchangeBicolorGemstones = true
 if ItemToPurchase == "" or ItemToPurchase == nil then
     ShouldExchangeBicolorGemstones = false
 end
+
+-- Log gemstone configuration
+Dalamud.Log("[FATE] Gemstone Configuration - ShouldExchangeBicolorGemstones: " .. tostring(ShouldExchangeBicolorGemstones) .. ", ItemToPurchase: " .. tostring(ItemToPurchase))
 SelfRepair = Config.Get("Self repair?")
 RemainingDurabilityToRepair     = 10            --the amount it needs to drop before Repairing (set it to 0 if you don't want it to repair)
 ShouldAutoBuyDarkMatter         = true          --Automatically buys a 99 stack of Grade 8 Dark Matter from the Limsa gil vendor if you're out
@@ -3462,6 +3540,7 @@ end
 
 
 if ShouldExchangeBicolorGemstones ~= false then
+    Dalamud.Log("[FATE] Setting up bicolor exchange for item: " .. tostring(ItemToPurchase))
     for _, shop in ipairs(BicolorExchangeData) do
         for _, item in ipairs(shop.shopItems) do
             if item.itemName == ItemToPurchase then
@@ -3473,6 +3552,7 @@ if ShouldExchangeBicolorGemstones ~= false then
                     position = shop.position,
                     item = item
                 }
+                Dalamud.Log("[FATE] Found shop data for " .. ItemToPurchase .. " at " .. shop.shopKeepName)
             end
         end
     end
@@ -3514,6 +3594,9 @@ while not StopScript do
     end
     
     BicolorGemCount = Inventory.GetItemCount(26807)
+    if BicolorGemCount >= 1400 then
+        Dalamud.Log("[FATE] High gem count detected: " .. tostring(BicolorGemCount) .. "/1500")
+    end
 
     if not (Player.Entity.IsCasting or
         Svc.Condition[CharacterCondition.betweenAreas] or
