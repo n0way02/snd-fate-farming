@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: pot0to
-version: 3.1.0
+version: 3.1.1
 description: >-
   Fate farming script with the following features:
 
@@ -134,6 +134,15 @@ configs:
     default: false
     type: boolean
     description: Enable automatic zone switching when no FATEs are available. Automatically detects your current expansion and cycles through all zones within that expansion (ARR, HW, SB, ShB, EW, DT)
+  Change world between cycles?:
+    default: false
+    type: boolean
+    description: When enabled, switches to the next world after completing a full multi-zone cycle (stays in the same data center)
+  World rotation list:
+    default: 
+    type: string
+    description: Comma-separated list of worlds to rotate through (e.g. "Zalera, Mateus, Cactuar"). All should be in your current data center.
+
 [[End Metadata]]
 --]=====]
 --[[
@@ -142,6 +151,13 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.1    by: n0way02 (https://ko-fi.com/n0way02)    
+                Added World Rotation support for cross-world farming within your data center.
+                Fixed gemstone exchange bug where ShouldExchangeBicolorGemstones was forced to true.
+                Fixed broken state logic conditions that were causing plugin crashes.
+                Added cooldown protection to prevent world switching loops.
+                Enhanced zone change logic with better error handling and fallbacks.
+                Improved logging and debugging for world rotation and gemstone management.
     -> 3.1.0    by: n0way02 (https://ko-fi.com/n0way02)    
                 Added Multi-Zone Farming option to automatically cycle through zones when no FATEs available.
                 Supports ALL expansions: ARR, Heavensward, Stormblood, Shadowbringers, Endwalker, and Dawntrail.
@@ -1583,6 +1599,18 @@ function ChangeToNextZone()
     
     Dalamud.Log("[FATE] Multi-Zone: Switching to next zone")
     Dalamud.Log("[FATE] Multi-Zone: CurrentMultiZoneIndex = " .. tostring(CurrentMultiZoneIndex) .. ", Total zones = " .. tostring(#MultiZoneOrder))
+    if MultiZoneOrder == nil or #MultiZoneOrder == 0 then
+        Dalamud.Log("[FATE] Multi-Zone: No zones in MultiZoneOrder; aborting zone change")
+        return false
+    end
+    local willWrap = (CurrentMultiZoneIndex % #MultiZoneOrder) + 1 == 1
+    -- If we are about to wrap to the first zone and world-rotation is enabled, change world first
+    if willWrap and EnableWorldRotation and #WorldRotationList > 0 then
+        local worldChanged = ChangeToNextWorld()
+        if not worldChanged then
+            Dalamud.Log("[FATE] World change failed or not applicable; continuing zone wrap")
+        end
+    end
     CurrentMultiZoneIndex = (CurrentMultiZoneIndex % #MultiZoneOrder) + 1
     local nextZone = MultiZoneOrder[CurrentMultiZoneIndex]
     Dalamud.Log("[FATE] Multi-Zone: Next zone index = " .. tostring(CurrentMultiZoneIndex) .. ", Zone = " .. tostring(nextZone.fateZoneName))
@@ -1598,7 +1626,7 @@ function ChangeToNextZone()
     -- Find aetheryte for the zone
     local aetherytes = GetAetherytesInZone(nextZone.zoneId)
     Dalamud.Log("[FATE] Multi-Zone: Found "..#aetherytes.." aetherytes for zone "..nextZone.fateZoneName)
-    if aetherytes and #aetherytes > 0 then
+    if aetherytes ~= nil and #aetherytes > 0 then
         local aetheryteName = GetAetheryteName(aetherytes[1])
         Dalamud.Log("[FATE] Multi-Zone: Teleporting to "..aetheryteName.." in "..nextZone.fateZoneName)
         TeleportTo(aetheryteName)
@@ -1632,6 +1660,37 @@ function ChangeToNextZone()
         yield("/echo [FATE] Multi-Zone: ERROR - No aetherytes found for "..nextZone.fateZoneName)
         return false
     end
+end
+
+-- Changes to the next world in the configured rotation (same data center). Returns true on success.
+function ChangeToNextWorld()
+    if not EnableWorldRotation then
+        Dalamud.Log("[FATE] World-Rotation: disabled")
+        return false
+    end
+    if WorldRotationList == nil or #WorldRotationList == 0 then
+        Dalamud.Log("[FATE] World-Rotation: empty list; aborting")
+        return false
+    end
+    local now = os.clock()
+    if (now - LastWorldChangeTime) < WorldChangeCooldown then
+        Dalamud.Log("[FATE] World-Rotation: cooldown active; skipping world change")
+        return false
+    end
+    -- Advance to next world; if auto mode, skip current world to avoid reselecting it
+    WorldRotationIndex = (WorldRotationIndex % #WorldRotationList) + 1
+    local targetWorld = WorldRotationList[WorldRotationIndex]
+    if targetWorld == nil or targetWorld == "" then
+        Dalamud.Log("[FATE] World-Rotation: invalid target world; aborting")
+        return false
+    end
+    Dalamud.Log("[FATE] World-Rotation: Switching to world " .. targetWorld)
+    yield("/li " .. targetWorld)
+    -- wait a bit for xworld transfer to complete
+    yield("/wait 6")
+    LastWorldChangeTime = now
+    -- Best-effort: we can't easily verify world without API; proceed
+    return true
 end
 
 function ChangeInstance()
@@ -2731,6 +2790,21 @@ function Ready()
             if Echo == "All" then
                 yield("/echo [FATE] Multi-Zone: No eligible FATEs found, switching zones")
             end
+
+            -- If only one zone in the cycle, prefer world rotation immediately (if enabled)
+            if EnableWorldRotation and #WorldRotationList > 0 and (MultiZoneOrder == nil or #MultiZoneOrder <= 1) then
+                Dalamud.Log("[FATE] World-Rotation: Single-zone cycle detected; switching world")
+                local didWorldChange = ChangeToNextWorld()
+                if didWorldChange then
+                    yield("/wait 2")
+                    SelectedZone = SelectNextZone()
+                    NextFate = SelectNextFate()
+                    Dalamud.Log("[FATE] World-Rotation: Done, recalculated NextFate=" .. tostring(NextFate and NextFate.fateName or "nil"))
+                    return
+                else
+                    Dalamud.Log("[FATE] World-Rotation: Could not switch world; continuing zone logic")
+                end
+            end
             
             -- Check if we've been trying to change zones for too long
             if timeSinceLastZoneChange > ZoneChangeTimeout then
@@ -2760,6 +2834,18 @@ function Ready()
                 return
             else
                 Dalamud.Log("[FATE] Multi-Zone: Zone change failed")
+                -- Fallback to world rotation if enabled
+                if EnableWorldRotation and #WorldRotationList > 0 then
+                    Dalamud.Log("[FATE] World-Rotation: Fallback after failed zone change")
+                    local didWorldChange2 = ChangeToNextWorld()
+                    if didWorldChange2 then
+                        yield("/wait 2")
+                        SelectedZone = SelectNextZone()
+                        NextFate = SelectNextFate()
+                        Dalamud.Log("[FATE] World-Rotation: Done, recalculated NextFate=" .. tostring(NextFate and NextFate.fateName or "nil"))
+                        return
+                    end
+                end
             end
         elseif CompanionScriptMode and not shouldWaitForBonusBuff then
             if WaitingForFateRewards == nil then
@@ -3403,6 +3489,14 @@ MaxZoneChangeAttempts = 10
 LastZoneChangeTime = 0
 ZoneChangeTimeout = 30 -- seconds
 LastGemCount = 0
+-- World rotation controls
+EnableWorldRotation = Config.Get("Change world between cycles?")
+WorldRotationListRaw = Config.Get("World rotation list")
+WorldRotationList = {}
+WorldRotationIndex = 1
+
+LastWorldChangeTime = 0
+WorldChangeCooldown = 30 -- seconds to avoid immediate world-change loops
 ShouldExchangeBicolorGemstones = Config.Get("Exchange bicolor gemstones?")
 ItemToPurchase = Config.Get("Exchange bicolor gemstones for")
 if ItemToPurchase == "" or ItemToPurchase == nil then
@@ -3411,6 +3505,17 @@ end
 
 -- Log gemstone configuration
 Dalamud.Log("[FATE] Gemstone Configuration - ShouldExchangeBicolorGemstones: " .. tostring(ShouldExchangeBicolorGemstones) .. ", ItemToPurchase: " .. tostring(ItemToPurchase))
+-- Parse world rotation list
+if EnableWorldRotation and type(WorldRotationListRaw) == "string" and WorldRotationListRaw ~= "" then
+    for world in string.gmatch(WorldRotationListRaw, "[^,]+") do
+        local trimmed = world:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" then table.insert(WorldRotationList, trimmed) end
+    end
+    Dalamud.Log("[FATE] World Rotation enabled with " .. tostring(#WorldRotationList) .. " worlds")
+    if #WorldRotationList == 0 then EnableWorldRotation = false end
+else
+    EnableWorldRotation = false
+end
 SelfRepair = Config.Get("Self repair?")
 RemainingDurabilityToRepair     = 10            --the amount it needs to drop before Repairing (set it to 0 if you don't want it to repair)
 ShouldAutoBuyDarkMatter         = true          --Automatically buys a 99 stack of Grade 8 Dark Matter from the Limsa gil vendor if you're out

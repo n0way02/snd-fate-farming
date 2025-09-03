@@ -17,6 +17,13 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 - **Configurable**: Easy on/off toggle in SND settings
 - **Immediate Response**: Triggers instantly when "No eligible fates found"
 
+### 🌍 World Rotation Support
+- **Cross-World Farming**: Automatically switches to different worlds within your data center
+- **Manual Configuration**: Specify your own world rotation list
+- **Cycle Completion**: Switches worlds after completing a full zone cycle
+- **Same Data Center**: Stays within your current data center for optimal performance
+- **Cooldown Protection**: Prevents rapid world switching loops
+
 **Supported Expansions & Zones:**
 - **A Realm Reborn (ARR)**: Middle La Noscea, Lower La Noscea, Central Thanalan, Eastern Thanalan, Southern Thanalan, Coerthas Central Highlands, Mor Dhona, Outer La Noscea
 - **Heavensward (HW)**: Coerthas Western Highlands, The Dravanian Forelands, The Dravanian Hinterlands, The Churning Mists, The Sea of Clouds, Azys Lla
@@ -75,6 +82,10 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 - **Multi-Zone Farming**: `false` (default) - Enable automatic zone cycling
 - **Change instances if no FATEs**: `true` (default) - Fallback to instance changing
 
+### World Rotation Settings
+- **Change world between cycles**: `false` (default) - Enable world switching after completing zone cycles
+- **World rotation list**: Manual list of worlds to rotate through (e.g., "Behemoth, Excalibur, Hyperion")
+
 ### Combat Settings
 - **Rotation Plugin**: Choose your preferred combat plugin
 - **Dodging Plugin**: Choose your preferred dodging plugin
@@ -95,6 +106,7 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
    - Detect your current expansion
    - Find and complete FATEs in current zone
    - Switch to next zone within the same expansion when no FATEs available
+   - Switch to next world within your data center after completing zone cycles (if enabled)
    - Handle all maintenance tasks (repair, retainers, etc.)
    - Continue cycling through all zones in that expansion
 
@@ -113,6 +125,14 @@ Advanced FATE farming script with multi-zone support for Final Fantasy XIV. Auto
 **Multi-Zone Enhancement**: [n0way02](https://github.com/n0way02)
 
 ## Version History
+
+### v3.1.1 - World Rotation & Bug Fixes
+- Added World Rotation support for cross-world farming within your data center
+- Fixed critical gemstone exchange bug where plugin was forced to exchange regardless of user settings
+- Fixed broken state logic conditions that were causing "Unknown error" crashes
+- Added cooldown protection to prevent world switching loops
+- Enhanced zone change logic with better error handling and fallbacks
+- Improved logging and debugging for world rotation and gemstone management
 
 ### v3.1.0 - Multi-Zone Update
 - Added Multi-Zone Farming option for ALL expansions (ARR, HW, SB, ShB, EW, DT)
