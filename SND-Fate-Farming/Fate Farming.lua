@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: pot0to
-version: 3.1.1
+version: 3.1.2
 description: >-
   Fate farming script with the following features:
 
@@ -151,6 +151,8 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.2    by: n0way02 (https://ko-fi.com/n0way02)    
+                Updated repair: always uses "/ad repair" when gear needs repair (independent of SelfRepair) and returns to fates after completion.
     -> 3.1.1    by: n0way02 (https://ko-fi.com/n0way02)    
                 Added World Rotation support for cross-world farming within your data center.
                 Fixed gemstone exchange bug where ShouldExchangeBicolorGemstones was forced to true.
@@ -826,7 +828,8 @@ FatesData = {
             blacklistedFates= {
                 "Young Volcanoes",
                 "Wolf Parade", -- multiple Pelupelu Peddler npcs, rng whether it tries to talk to the right one
-                "Panaq Attack" -- multiple Pelupleu Peddler npcs
+                "Panaq Attack", -- multiple Pelupleu Peddler npcs
+                "Salty Showdown"
             }
         }
     },
@@ -2728,8 +2731,7 @@ function Ready()
 
     if not Player.Available then
         return
-    elseif RemainingDurabilityToRepair > 0 and needsRepair.Count > 0 and
-        (not shouldWaitForBonusBuff or (SelfRepair and Inventory.GetItemCount(33916) > 0)) then
+	elseif RemainingDurabilityToRepair > 0 and needsRepair.Count > 0 then
         State = CharacterState.repair
         Dalamud.Log("[FATE] State Change: Repair")
     elseif ShouldExtractMateria and spiritbonded.Count > 0 and Inventory.GetFreeInventorySlots() > 1 then
@@ -3085,121 +3087,45 @@ function GrandCompanyTurnIn()
 end
 
 function Repair()
-    local needsRepair = Inventory.GetItemsInNeedOfRepairs(RemainingDurabilityToRepair)
-    if Addons.GetAddon("SelectYesno").Ready then
-        yield("/callback SelectYesno true 0")
-        return
-    end
+	local needsRepair = Inventory.GetItemsInNeedOfRepairs(RemainingDurabilityToRepair)
 
-    if Addons.GetAddon("Repair").Ready then
-        if needsRepair.Count == nil or needsRepair.Count == 0 then
-            yield("/callback Repair true -1") -- if you don't need repair anymore, close the menu
-        else
-            yield("/callback Repair true 0") -- select repair
-        end
-        return
-    end
+	-- If nothing needs repair anymore, go back to ready
+	if needsRepair == nil or needsRepair.Count == nil or needsRepair.Count == 0 then
+		State = CharacterState.ready
+		Dalamud.Log("[FATE] State Change: Ready")
+		return
+	end
 
-    -- if occupied by repair, then just wait
-    if Svc.Condition[CharacterCondition.occupiedMateriaExtractionAndRepair] then
-        Dalamud.Log("[FATE] Repairing...")
-        yield("/wait 1")
-        return
-    end
+	-- If mounted, dismount first to avoid action restrictions
+	if Svc.Condition[CharacterCondition.mounted] then
+		Dismount()
+		Dalamud.Log("[FATE] State Change: Dismounting for Repair")
+		return
+	end
 
-    local hawkersAlleyAethernetShard = { x=-213.95, y=15.99, z=49.35 }
-    if SelfRepair then
-        if Inventory.GetItemCount(33916) > 0 then
-            if Addons.GetAddon("Shop").Ready then
-                yield("/callback Shop true -1")
-                return
-            end
+	-- Use the AutoDuty plugin's repair command
+	Dalamud.Log("[FATE] Triggering AutoDuty repair...")
+	yield("/ad repair")
 
-            if Svc.ClientState.TerritoryType ~=  SelectedZone.zoneId then
-                TeleportTo(SelectedZone.aetheryteList[1].aetheryteName)
-                return
-            end
+	-- Wait until the game reports we are in a repair/processing state
+	if Svc.Condition[CharacterCondition.occupiedMateriaExtractionAndRepair] then
+		yield("/wait 1")
+		return
+	end
 
-            if Svc.Condition[CharacterCondition.mounted] then
-                Dismount()
-                Dalamud.Log("[FATE] State Change: Dismounting")
-                return
-            end
+	-- Poll until all items no longer need repair, then return to fates
+	for i=1, 60 do
+		local check = Inventory.GetItemsInNeedOfRepairs(RemainingDurabilityToRepair)
+		if check == nil or check.Count == nil or check.Count == 0 then
+			State = CharacterState.ready
+			Dalamud.Log("[FATE] Repair complete. State Change: Ready")
+			return
+		end
+		yield("/wait 2")
+	end
 
-            if needsRepair.Count > 0 then
-                if not Addons.GetAddon("Repair").Ready then
-                    Dalamud.Log("[FATE] Opening repair menu...")
-                    yield("/generalaction repair")
-                end
-            else
-                State = CharacterState.ready
-                Dalamud.Log("[FATE] State Change: Ready")
-            end
-        elseif ShouldAutoBuyDarkMatter then
-            if Svc.ClientState.TerritoryType ~=  129 then
-                if Echo == "All" then
-                    yield("/echo Out of Dark Matter! Purchasing more from Limsa Lominsa.")
-                end
-                TeleportTo("Limsa Lominsa Lower Decks")
-                return
-            end
-
-            local darkMatterVendor = { npcName="Unsynrael", x=-257.71, y=16.19, z=50.11, wait=0.08 }
-            if GetDistanceToPoint(darkMatterVendor.position) > (DistanceBetween(hawkersAlleyAethernetShard.position, darkMatterVendor.position) + 10) then
-                yield("/li Hawkers' Alley")
-                yield("/wait 1") -- give it a moment to register
-            elseif Addons.GetAddon("TelepotTown").Ready then
-                yield("/callback TelepotTown false -1")
-            elseif GetDistanceToPoint(darkMatterVendor.position) > 5 then
-                if not (IPC.vnavmesh.PathfindInProgress() or IPC.vnavmesh.IsRunning()) then
-                    IPC.vnavmesh.PathfindAndMoveTo(darkMatterVendor.position, false)
-                end
-            else
-                if Svc.Targets.Target == nil or GetTargetName() ~= darkMatterVendor.npcName then
-                    yield("/target "..darkMatterVendor.npcName)
-                elseif not Svc.Condition[CharacterCondition.occupiedInQuestEvent] then
-                    yield("/interact")
-                elseif Addons.GetAddon("SelectYesno").Ready then
-                    yield("/callback SelectYesno true 0")
-                elseif Addons.GetAddon("Shop") then
-                    yield("/callback Shop true 0 40 99")
-                end
-            end
-        else
-            if Echo == "All" then
-                yield("/echo Out of Dark Matter and ShouldAutoBuyDarkMatter is false. Switching to Limsa mender.")
-            end
-            SelfRepair = false
-        end
-    else
-        if needsRepair.Count > 0 then
-            if Svc.ClientState.TerritoryType ~= 129 then
-                TeleportTo("Limsa Lominsa Lower Decks")
-                return
-            end
-            
-            local mender = { npcName="Alistair", x=-246.87, y=16.19, z=49.83 }
-            if GetDistanceToPoint(mender.position) > (DistanceBetween(hawkersAlleyAethernetShard.position, mender.position) + 10) then
-                yield("/li Hawkers' Alley")
-                yield("/wait 1") -- give it a moment to register
-            elseif Addons.GetAddon("TelepotTown").Ready then
-                yield("/callback TelepotTown false -1")
-            elseif GetDistanceToPoint(mender.position) > 5 then
-                if not (IPC.vnavmesh.PathfindInProgress() or IPC.vnavmesh.IsRunning()) then
-                    IPC.vnavmesh.PathfindAndMoveTo(mender.position, false)
-                end
-            else
-                if Svc.Targets.Target == nil or GetTargetName() ~= mender.npcName then
-                    yield("/target "..mender.npcName)
-                elseif not Svc.Condition[CharacterCondition.occupiedInQuestEvent] then
-                    yield("/interact")
-                end
-            end
-        else
-            State = CharacterState.ready
-            Dalamud.Log("[FATE] State Change: Ready")
-        end
-    end
+	-- Fallback: if after waiting it still needs repair, try again next tick
+	Dalamud.Log("[FATE] Repair still pending, retrying...")
 end
 
 function ExtractMateria()
