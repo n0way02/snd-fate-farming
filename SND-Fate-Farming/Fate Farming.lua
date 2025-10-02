@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: pot0to
-version: 3.1.2
+version: 3.1.3
 description: >-
   Fate farming script with the following features:
 
@@ -151,6 +151,9 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.3    by: n0way02 (https://ko-fi.com/n0way02)    
+                Fixed automatic gemstone exchange: script now properly triggers gemstone exchange when reaching 1400+ gemstones,
+                regardless of waiting for fate rewards or bonus buff conditions. Previously would only warn and get stuck.
     -> 3.1.2    by: n0way02 (https://ko-fi.com/n0way02)    
                 Updated repair: always uses "/ad repair" when gear needs repair (independent of SelfRepair) and returns to fates after completion.
     -> 3.1.1    by: n0way02 (https://ko-fi.com/n0way02)    
@@ -2737,7 +2740,7 @@ function Ready()
     elseif ShouldExtractMateria and spiritbonded.Count > 0 and Inventory.GetFreeInventorySlots() > 1 then
         State = CharacterState.extractMateria
         Dalamud.Log("[FATE] State Change: ExtractMateria")
-    elseif (not Dalamud.Log("[FATE] Ready -> WaitBonusBuff") and NextFate == nil and shouldWaitForBonusBuff) and DownTimeWaitAtNearestAetheryte then
+	elseif (not Dalamud.Log("[FATE] Ready -> WaitBonusBuff") and NextFate == nil and shouldWaitForBonusBuff) and DownTimeWaitAtNearestAetheryte and not (ShouldExchangeBicolorGemstones and (BicolorGemCount >= 1400)) then
         if Svc.Targets.Target == nil or GetTargetName() ~= "aetheryte" or GetDistanceToTarget() > 20 then
             State = CharacterState.flyBackToAetheryte
             Dalamud.Log("[FATE] State Change: FlyBackToAetheryte")
@@ -2748,12 +2751,8 @@ function Ready()
     elseif ShouldExchangeBicolorGemstones and (BicolorGemCount >= 1400) and not shouldWaitForBonusBuff
     then
         Dalamud.Log("[FATE] Ready -> ExchangingVouchers: ShouldExchangeBicolorGemstones=" .. tostring(ShouldExchangeBicolorGemstones) .. ", BicolorGemCount=" .. tostring(BicolorGemCount) .. ", shouldWaitForBonusBuff=" .. tostring(shouldWaitForBonusBuff))
-        if WaitingForFateRewards == nil then
-            State = CharacterState.exchangingVouchers
-            Dalamud.Log("[FATE] State Change: ExchangingVouchers")
-        else
-            Dalamud.Log("[FATE] Waiting for fate rewards: "..WaitingForFateRewards.fateId)
-        end
+        State = CharacterState.exchangingVouchers
+        Dalamud.Log("[FATE] State Change: ExchangingVouchers")
     elseif WaitingForFateRewards == nil and
         Retainers and ARRetainersWaitingToBeProcessed() and Inventory.GetFreeInventorySlots() > 1  and not shouldWaitForBonusBuff
     then
