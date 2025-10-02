@@ -955,6 +955,7 @@ FatesData = {
                 "Mascot Murder"
             },
             blacklistedFates= {
+                "Plumbers Don't Fear Slimes"
             }
         }
     }
