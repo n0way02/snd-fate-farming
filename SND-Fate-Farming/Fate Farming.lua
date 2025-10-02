@@ -856,7 +856,8 @@ FatesData = {
             fatesWithContinuations = {},
             blacklistedFates= {
                 "Mole Patrol",
-                "Tax Dodging" -- multiple Pelupelu Peddlers
+                "Tax Dodging", -- multiple Pelupelu Peddlers
+                "Ruffling Feathers"
             }
         }
     },
