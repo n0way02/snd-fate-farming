@@ -879,7 +879,8 @@ FatesData = {
                 "Stabbing Gutward"
             },
             blacklistedFates= {
-                "The Departed"
+                "The Departed",
+                "La Selva se lo Llevó"
             }
         }
     },
