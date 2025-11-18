@@ -880,7 +880,8 @@ FatesData = {
             },
             blacklistedFates= {
                 "The Departed",
-                "La Selva se lo Llevó"
+                "La Selva se lo Llevó",
+                "This Kills the Craklaw" --Character get stuck on plants
             }
         }
     },
