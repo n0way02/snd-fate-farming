@@ -857,7 +857,8 @@ FatesData = {
             blacklistedFates= {
                 "Mole Patrol",
                 "Tax Dodging", -- multiple Pelupelu Peddlers
-                "Ruffling Feathers"
+                "Ruffling Feathers",
+				"This Kills the Craklaw"
             }
         }
     },
