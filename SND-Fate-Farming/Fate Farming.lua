@@ -28,7 +28,6 @@ plugin_dependencies:
 - TextAdvance
 - AutoDuty
 - BossMod
-- Rotation Solver Reborn
 configs:
   Food:
     default: 
