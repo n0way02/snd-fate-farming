@@ -40,7 +40,7 @@ configs:
     description: Options - Follow/Free/Defender/Healer/Attacker/None. Will not summon chocobo if set to "None"
     type: string
   Buy Gysahl Greens?:
-    default: true
+    default: false
     description: Automatically buys a 99 stack of Gysahl Greens from the Limsa gil vendor if none in inventory
     type: boolean
   Ignore FATE if progress is over (%):
@@ -74,7 +74,7 @@ configs:
     max: 100
     required: true
   Do collection FATEs?:
-    default: true
+    default: false
     type: boolean
   Do only bonus FATEs?:
     default: false
@@ -97,7 +97,7 @@ configs:
     description: Options - All/Small/None
     required: true
   Change instances if no FATEs?:
-    default: true
+    default: false
     type: boolean
   Exchange bicolor gemstones for:
     default: Turali Bicolor Gemstone Voucher
@@ -108,10 +108,10 @@ configs:
     description: If checked, will attempt to repair your gear. If not checked, will go to Limsa mender.
     type: boolean
   Pause for retainers?:
-    default: true
+    default: false
     type: boolean
   Dump extra gear at GC?:
-    default: true
+    default: false
     type: boolean
     description: Used with retainers, in case they come back with too much stuff and clog your inventory.
   Return on death?:
