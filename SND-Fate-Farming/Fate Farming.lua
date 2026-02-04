@@ -858,7 +858,8 @@ FatesData = {
                 "Mole Patrol",
                 "Tax Dodging", -- multiple Pelupelu Peddlers
                 "Ruffling Feathers",
-				"This Kills the Craklaw"
+				"This Kills the Craklaw",
+				"Reeds in Need"
             }
         }
     },
