@@ -26,6 +26,9 @@ plugin_dependencies:
 - Lifestream
 - vnavmesh
 - TextAdvance
+- AutoDuty
+- BossMod
+- RotationSolver Reborn
 configs:
   Food:
     default: 
