@@ -861,7 +861,8 @@ FatesData = {
                 "Tax Dodging", -- multiple Pelupelu Peddlers
                 "Ruffling Feathers",
 				"This Kills the Craklaw",
-				"Reeds in Need"
+				"Reeds in Need",
+				"Crocs of the Creek"
             }
         }
     },
