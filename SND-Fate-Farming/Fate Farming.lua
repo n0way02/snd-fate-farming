@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.3
+version: 3.1.4
 description: >-
   Fate farming script with the following features:
 
@@ -153,6 +153,8 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.4    by: n0way02 (https://ko-fi.com/n0way02)    
+                Added real-time FATE tracking integration for web dashboard.
     -> 3.1.3    by: n0way02 (https://ko-fi.com/n0way02)    
                 Fixed automatic gemstone exchange: script now properly triggers gemstone exchange when reaching 1400+ gemstones,
                 regardless of waiting for fate rewards or bonus buff conditions. Previously would only warn and get stuck.
