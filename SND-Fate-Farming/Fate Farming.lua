@@ -790,6 +790,7 @@ FatesData = {
             fatesWithContinuations = {},
             blacklistedFates= {
                 "Hunger Strikes", --really bad line of sight with rocks, get stuck not doing anything quite often
+                "Lepus Lamentorum: Dynamite Disaster",
             }
         }
     },
@@ -1737,9 +1738,20 @@ function ChangeToNextWorld()
     end
     Dalamud.Log("[FATE] World-Rotation: Switching to world " .. targetWorld)
     yield("/li " .. targetWorld)
-    -- wait a bit for xworld transfer to complete
-    yield("/wait 6")
-    LastWorldChangeTime = now
+    
+    yield("/wait 3")
+    while IPC.Lifestream.IsBusy() do
+        yield("/wait 2")
+        Dalamud.Log("[FATE] World-Rotation: Waiting for Lifestream world transfer to complete...")
+    end
+    
+    while Svc.Condition[CharacterCondition.betweenAreas] do
+        yield("/wait 1")
+    end
+    yield("/wait 2")
+
+    -- Note: os.clock() must be refreshed since the wait can be 30s+
+    LastWorldChangeTime = os.clock()
     -- Best-effort: we can't easily verify world without API; proceed
     return true
 end
