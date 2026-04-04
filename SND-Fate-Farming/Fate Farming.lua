@@ -794,6 +794,7 @@ FatesData = {
                 "Hunger Strikes", --really bad line of sight with rocks, get stuck not doing anything quite often
                 "Lepus Lamentorum: Dynamite Disaster",
                 "Scrapping the Scrapers",
+                "The Strolling Stones",
             }
         }
     },
