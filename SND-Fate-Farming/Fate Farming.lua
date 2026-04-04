@@ -2302,13 +2302,18 @@ function AutoBuyGysahlGreens()
                 end
             elseif Svc.Targets.Target ~= nil and GetTargetName() == gysahlGreensVendor.npcName then
                 yield("/vnav stop")
-                if Addons.GetAddon("SelectYesno").Ready then
+                if Addons.GetAddon("Talk").Ready then
+                    yield("/callback Talk true")
+                elseif Addons.GetAddon("SelectYesno").Ready then
                     yield("/callback SelectYesno true 0")
+                elseif Addons.GetAddon("SelectString").Ready then
+                    yield("/callback SelectString true 0")
+                    return
                 elseif Addons.GetAddon("SelectIconString").Ready then
                     yield("/callback SelectIconString true 0")
                     return
                 elseif Addons.GetAddon("Shop").Ready then
-                    yield("/callback Shop true 0 2 99")
+                    yield("/callback Shop true 0 5 99")
                     return
                 elseif not Svc.Condition[CharacterCondition.occupied] then
                     yield("/interact")
@@ -3627,6 +3632,8 @@ pcall(function()
     GlobalTrackerClient.DefaultRequestHeaders:Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
 end)
 Dalamud.Log("[FATE Tracker] Script carregado e variáveis iniciais definidas!")
+SessionGemstonesFarmed = 0
+LastFrameGemstoneCount = Inventory.GetItemCount(26807)
 
 while not StopScript do
     local nearestFate = Fates.GetNearestFate()
@@ -3650,6 +3657,11 @@ while not StopScript do
     end
     
     BicolorGemCount = Inventory.GetItemCount(26807)
+    if LastFrameGemstoneCount ~= nil and BicolorGemCount > LastFrameGemstoneCount then
+        SessionGemstonesFarmed = SessionGemstonesFarmed + (BicolorGemCount - LastFrameGemstoneCount)
+    end
+    LastFrameGemstoneCount = BicolorGemCount
+
     if BicolorGemCount >= 1400 then
         Dalamud.Log("[FATE] High gem count detected: " .. tostring(BicolorGemCount) .. "/1500")
     end
@@ -3678,17 +3690,28 @@ while not StopScript do
         if pc ~= nil then
             local playerName = pc.Name:GetText()
             local serverName = pc.HomeWorld.Value.Name:GetText()
+            
+            local currentServer = serverName
+            pcall(function() currentServer = pc.CurrentWorld.Value.Name:GetText() end)
+            
+            local currentMap = "Unknown"
+            if SelectedZone ~= nil and SelectedZone.zoneName ~= nil then 
+                currentMap = SelectedZone.zoneName 
+            end
+            
+            local gemsFarmed = SessionGemstonesFarmed or 0
+
             if playerName and serverName then
                 -- Try C# HttpClient first, fallback to powershell
                 if GlobalTrackerClient ~= nil and StringContent ~= nil and Encoding ~= nil then
                     local ok, err = pcall(function()
-                        local jsonBody = '{"playerName": "'..playerName..'", "serverName": "'..serverName..'"}'
+                        local jsonBody = '{"playerName": "'..playerName..'", "serverName": "'..serverName..'", "currentServer": "'..currentServer..'", "currentMap": "'..currentMap..'", "gemstonesFarmed": '..gemsFarmed..'}'
                         local stringContent = StringContent(jsonBody, Encoding.UTF8, "application/json")
                         GlobalTrackerClient:PostAsync("https://y-kohl-omega.vercel.app/api/track", stringContent)
                     end)
                 else
                     pcall(function()
-                        local jsonBody = '{\\"playerName\\": \\"'..playerName..'\\", \\"serverName\\": \\"'..serverName..'\\"}'
+                        local jsonBody = '{\\"playerName\\": \\"'..playerName..'\\", \\"serverName\\": \\"'..serverName..'\\", \\"currentServer\\": \\"'..currentServer..'\\", \\"currentMap\\": \\"'..currentMap..'\\", \\"gemstonesFarmed\\": '..gemsFarmed..'}'
                         local psCmd = 'start /B powershell -WindowStyle Hidden -Command "Invoke-RestMethod -Uri https://y-kohl-omega.vercel.app/api/track -Method Post -Body \''..jsonBody..'\' -ContentType \'application/json\' -UserAgent \'Mozilla/5.0\'"'
                         os.execute(psCmd)
                     end)
