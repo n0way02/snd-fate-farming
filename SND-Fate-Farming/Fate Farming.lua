@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.5
+version: 3.1.6
 description: >-
   Fate farming script with the following features:
 
@@ -161,6 +161,8 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.6    by: n0way02 (https://ko-fi.com/n0way02)
+                Added Blacklisted Zones and Blacklisted FATEs functionalities to Multi-Zone Farming.
     -> 3.1.5    by: n0way02 (https://ko-fi.com/n0way02)
                 Fix "Insufficient inventory space" for Bango Zango when buying Gysahl Greens (Updated Item Index).
                 Enhanced Fate Tracker integration: added Map, Server and Gemstone Tracker support to real-time UI.
