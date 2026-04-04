@@ -42,7 +42,7 @@ configs:
     description: Options - Follow/Free/Defender/Healer/Attacker/None. Will not summon chocobo if set to "None"
     type: string
   Buy Gysahl Greens?:
-    default: false
+    default: true
     description: Automatically buys a 99 stack of Gysahl Greens from the Limsa gil vendor if none in inventory
     type: boolean
   Ignore FATE if progress is over (%):
