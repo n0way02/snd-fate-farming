@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.4
+version: 3.1.5
 description: >-
   Fate farming script with the following features:
 
@@ -153,6 +153,9 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.5    by: n0way02 (https://ko-fi.com/n0way02)
+                Fix "Insufficient inventory space" for Bango Zango when buying Gysahl Greens (Updated Item Index).
+                Enhanced Fate Tracker integration: added Map, Server and Gemstone Tracker support to real-time UI.
     -> 3.1.4    by: n0way02 (https://ko-fi.com/n0way02)    
                 Added real-time FATE tracking integration for web dashboard.
     -> 3.1.3    by: n0way02 (https://ko-fi.com/n0way02)    
