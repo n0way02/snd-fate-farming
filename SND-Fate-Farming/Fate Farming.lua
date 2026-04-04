@@ -106,7 +106,7 @@ configs:
     type: string
     description: Leave blank if you don't want to spend your bicolors
   Self repair?:
-    default: true
+    default: false
     description: If checked, will attempt to repair your gear. If not checked, will go to Limsa mender.
     type: boolean
   Pause for retainers?:
@@ -129,7 +129,7 @@ configs:
     type: string
     description: Options - Any/Wrath/RotationSolver/BossMod/BossModReborn. What Rotation Plugin to use.
   Dodging Plugin:
-    default: "Any"
+    default: "BossMod"
     type: string
     description: Options - Any/BossMod/BossModReborn/None. What Dodging Plugin to use. If your RotationPlugin is BossModReborn/BossMod, then this will be overriden
   Multi-Zone Farming:
@@ -141,9 +141,17 @@ configs:
     type: boolean
     description: When enabled, switches to the next world after completing a full multi-zone cycle (stays in the same data center)
   World rotation list:
-    default: 
+    default: "Halicarnassus, Cuchulainn, Golem, Kraken, Maduin, Marilith, Rafflesia, Seraph"
     type: string
     description: Comma-separated list of worlds to rotate through (e.g. "Zalera, Mateus, Cactuar"). All should be in your current data center.
+  Blacklisted Zones:
+    default: ""
+    type: string
+    description: Comma-separated list of zones to ignore when Multi-Zone Farming is enabled (e.g. "Urqopacha, Kozama'uka").
+  Blacklisted FATEs:
+    default: ""
+    type: string
+    description: Comma-separated list of specific FATE names to ignore unconditionally.
 
 [[End Metadata]]
 --]=====]
@@ -1132,6 +1140,9 @@ function IsSpecialFate(fateName)
 end
 
 function IsBlacklistedFate(fateName)
+    if GlobalBlacklistedFates ~= nil and GlobalBlacklistedFates[fateName] then
+        return true
+    end
     for i, blacklistedFate in ipairs(SelectedZone.fatesList.blacklistedFates) do
         if blacklistedFate == fateName then
             return true
@@ -1632,7 +1643,24 @@ function ChangeToNextZone()
             Dalamud.Log("[FATE] World change failed or not applicable; continuing zone wrap")
         end
     end
-    CurrentMultiZoneIndex = (CurrentMultiZoneIndex % #MultiZoneOrder) + 1
+    
+    local foundValidZone = false
+    for attempts = 1, #MultiZoneOrder do
+        CurrentMultiZoneIndex = (CurrentMultiZoneIndex % #MultiZoneOrder) + 1
+        local checkZone = MultiZoneOrder[CurrentMultiZoneIndex]
+        if GlobalBlacklistedZones ~= nil and GlobalBlacklistedZones[checkZone.fateZoneName] then
+            Dalamud.Log("[FATE] Multi-Zone: Skipping blacklisted zone " .. tostring(checkZone.fateZoneName))
+        else
+            foundValidZone = true
+            break
+        end
+    end
+    
+    if not foundValidZone then
+        Dalamud.Log("[FATE] Multi-Zone: All zones in the current expansion are blacklisted! Staying in current zone.")
+        return false
+    end
+
     local nextZone = MultiZoneOrder[CurrentMultiZoneIndex]
     Dalamud.Log("[FATE] Multi-Zone: Next zone index = " .. tostring(CurrentMultiZoneIndex) .. ", Zone = " .. tostring(nextZone.fateZoneName))
     
@@ -3461,6 +3489,26 @@ if EnableWorldRotation and type(WorldRotationListRaw) == "string" and WorldRotat
 else
     EnableWorldRotation = false
 end
+
+-- Parse custom blacklists
+BlacklistedZonesRaw = Config.Get("Blacklisted Zones")
+GlobalBlacklistedZones = {}
+if type(BlacklistedZonesRaw) == "string" and BlacklistedZonesRaw ~= "" then
+    for zone in string.gmatch(BlacklistedZonesRaw, "[^,]+") do
+        local trimmed = zone:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" then GlobalBlacklistedZones[trimmed] = true end
+    end
+end
+
+BlacklistedFatesRaw = Config.Get("Blacklisted FATEs")
+GlobalBlacklistedFates = {}
+if type(BlacklistedFatesRaw) == "string" and BlacklistedFatesRaw ~= "" then
+    for fate in string.gmatch(BlacklistedFatesRaw, "[^,]+") do
+        local trimmed = fate:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" then GlobalBlacklistedFates[trimmed] = true end
+    end
+end
+
 SelfRepair = Config.Get("Self repair?")
 RemainingDurabilityToRepair     = 10            --the amount it needs to drop before Repairing (set it to 0 if you don't want it to repair)
 ShouldAutoBuyDarkMatter         = true          --Automatically buys a 99 stack of Grade 8 Dark Matter from the Limsa gil vendor if you're out
