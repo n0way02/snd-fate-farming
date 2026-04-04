@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.6
+version: 3.1.7
 description: >-
   Fate farming script with the following features:
 
@@ -161,6 +161,8 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.7    by: n0way02 (https://ko-fi.com/n0way02)
+                Fixed an issue in ChangeToNextWorld where the script wouldn't properly wait for Lifestream, skipping the first map of the Multi-Zone rotation.
     -> 3.1.6    by: n0way02 (https://ko-fi.com/n0way02)
                 Added Blacklisted Zones and Blacklisted FATEs functionalities to Multi-Zone Farming.
     -> 3.1.5    by: n0way02 (https://ko-fi.com/n0way02)
@@ -791,6 +793,7 @@ FatesData = {
             blacklistedFates= {
                 "Hunger Strikes", --really bad line of sight with rocks, get stuck not doing anything quite often
                 "Lepus Lamentorum: Dynamite Disaster",
+                "Scrapping the Scrapers",
             }
         }
     },
