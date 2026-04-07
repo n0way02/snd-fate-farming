@@ -1,9 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.7
+version: 3.1.8
 description: >-
   Fate farming script with the following features:
+
+  - *[NEW - 3.1.8]* Integrated baanderson 3.1.6+ improvements (BossMod IPC presets, AutoRetainer for GC Turn-ins, Lifestream Fail-safes/Timeouts, Unexpected Combat safe-dismount).
 
   - Can purchase Bicolor Gemstone Vouchers (both old and new) when your gemstones are almost capped
 
@@ -102,9 +104,11 @@ configs:
     default: false
     type: boolean
   Exchange bicolor gemstones for:
-    default: Turali Bicolor Gemstone Voucher
+    description: Choose none if you dont want to spend your bicolors.
+    default: "Turali Bicolor Gemstone Voucher"
     type: string
-    description: Leave blank if you don't want to spend your bicolors
+    is_choice: true
+    choices: ["None", "Alexandrian Axe Beak Wing", "Alpaca Fillet", "Almasty Fur", "Amra", "Berkanan Sap", "Bicolor Gemstone Voucher", "Bird of Elpis Breast", "Branchbearer Fruit", "Br'aax Hide", "Dynamis Crystal", "Dynamite Ash", "Egg of Elpis", "Gaja Hide", "Gargantua Hide", "Gomphotherium Skin", "Hammerhead Crocodile Skin", "Hamsa Tenderloin", "Kumbhira Skin", "Lesser Apollyon Shell", "Lunatender Blossom", "Luncheon Toad Skin", "Megamaguey Pineapple", "Mousse Flesh", "Nopalitender Tuna", "Ovibos Milk", "Ophiotauros Hide", "Petalouda Scales", "Poison Frog Secretions", "Rroneek Chuck", "Rroneek Fleece", "Saiga Hide", "Silver Lobo Hide", "Swampmonk Thigh", "Tumbleclaw Weeds", "Turali Bicolor Gemstone Voucher", "Ty'aitya Wingblade", "Ut'ohmu Siderite"]
   Self repair?:
     default: false
     description: If checked, will attempt to repair your gear. If not checked, will go to Limsa mender.
@@ -132,6 +136,21 @@ configs:
     default: "BossMod"
     type: string
     description: Options - Any/BossMod/BossModReborn/None. What Dodging Plugin to use. If your RotationPlugin is BossModReborn/BossMod, then this will be overriden
+  BMR/VBM Specific settings:
+    description: "--- BMR/VBM Specific settings if you are using one of them as your rotation plugin ---"
+    default: false
+  Single Target Rotation:
+    description: Preset name with single strategies (for forlorns). TURN OFF AUTOMATIC TARGETING FOR THIS PRESET
+    default: ""
+  AoE Rotation:
+    description: Preset with AoE and Buff Strategies.
+    default: ""
+  Hold Buff Rotation:
+    description: Preset to hold 2min burst when progress gets to select percent
+    default: ""
+  Percentage to Hold Buff:
+    description: Ideally you want to make full use of your buffs, higher then 70% will still waste a few seconds if progress is too fast.
+    default: 65
   Multi-Zone Farming:
     default: false
     type: boolean
@@ -152,6 +171,10 @@ configs:
     default: ""
     type: string
     description: Comma-separated list of specific FATE names to ignore unconditionally.
+  Companion Script Mode:
+    description: Enable to use companison scripts with main Fate Farming script.
+    default: false
+    type: boolean
 
 [[End Metadata]]
 --]=====]
@@ -795,6 +818,7 @@ FatesData = {
                 "Lepus Lamentorum: Dynamite Disaster",
                 "Scrapping the Scrapers",
                 "The Strolling Stones",
+                "Taking Care of the Caretakers"
             }
         }
     },
@@ -1574,8 +1598,10 @@ end
 function TeleportToClosestAetheryteToFate(nextFate)
     local aetheryteForClosestFate = GetClosestAetheryteToPoint(nextFate.position, 200)
     if aetheryteForClosestFate ~=nil then
-        TeleportTo(aetheryteForClosestFate.aetheryteName)
-        return true
+        local teleSuccess = TeleportTo(aetheryteForClosestFate.aetheryteName)
+        if teleSuccess then
+            return true
+        end
     end
     return false
 end
@@ -1608,10 +1634,15 @@ end
 function TeleportTo(aetheryteName)
     Dalamud.Log("[FATE] TeleportTo() called for: "..aetheryteName)
     AcceptTeleportOfferLocation(aetheryteName)
+    local start = os.clock()
 
     while EorzeaTimeToUnixTime(Instances.Framework.EorzeaTime) - LastTeleportTimeStamp < 5 do
         Dalamud.Log("[FATE] Too soon since last teleport. Waiting...")
         yield("/wait 5.001")
+        if os.clock() - start > 30 then
+            yield("/echo [FATE] Teleport failed: Timeout waiting before cast.")
+            return false
+        end
     end
 
     Dalamud.Log("[FATE] Executing Lifestream teleport command: /li tp "..aetheryteName)
@@ -1620,14 +1651,25 @@ function TeleportTo(aetheryteName)
     while Svc.Condition[CharacterCondition.casting] do
         Dalamud.Log("[FATE] Casting teleport...")
         yield("/wait 1")
+        if os.clock() - start > 60 then
+            yield("/echo [FATE] Teleport failed: Timeout during cast.")
+            return false
+        end
     end
     yield("/wait 1") -- wait for that microsecond in between the cast finishing and the transition beginning
     while Svc.Condition[CharacterCondition.betweenAreas] do
         Dalamud.Log("[FATE] Teleporting...")
         yield("/wait 1")
+        if os.clock() - start > 120 then
+            yield("/echo [FATE] Teleport failed: Timeout during zone transition.")
+            return false
+        end
     end
     yield("/wait 1")
     LastTeleportTimeStamp = EorzeaTimeToUnixTime(Instances.Framework.EorzeaTime)
+    ClearTarget()
+    Dalamud.Log("[FATE] Finish TeleportTo()")
+    return true
 end
 
 function ChangeToNextZone()
@@ -2412,9 +2454,9 @@ function TurnOnAoes()
                 yield("/rotation settings aoetype 2")
             end
         elseif RotationPlugin == "BMR" then
-            yield("/bmrai setpresetname "..RotationAoePreset)
+            IPC.BossMod.SetActive(RotationAoePreset)
         elseif RotationPlugin == "VBM" then
-            yield("/vbm ar toggle "..RotationAoePreset)
+            IPC.BossMod.SetActive(RotationAoePreset)
         end
         AoesOn = true
     end
@@ -2427,9 +2469,9 @@ function TurnOffAoes()
             yield("/rotation manual")
             Dalamud.Log("[FATE] TurnOffAoes /rotation manual")
         elseif RotationPlugin == "BMR" then
-            yield("/bmrai setpresetname "..RotationSingleTargetPreset)
+            IPC.BossMod.SetActive(RotationSingleTargetPreset)
         elseif RotationPlugin == "VBM" then
-            yield("/vbm ar toggle "..RotationSingleTargetPreset)
+            IPC.BossMod.SetActive(RotationSingleTargetPreset)
         end
         AoesOn = false
     end
@@ -2438,9 +2480,9 @@ end
 function TurnOffRaidBuffs()
     if AoesOn then
         if RotationPlugin == "BMR" then
-            yield("/bmrai setpresetname "..RotationHoldBuffPreset)
+            IPC.BossMod.SetActive(RotationHoldBuffPreset)
         elseif RotationPlugin == "VBM" then
-            yield("/vbm ar toggle "..RotationHoldBuffPreset)
+            IPC.BossMod.SetActive(RotationHoldBuffPreset)
         end
     end
 end
@@ -2470,9 +2512,9 @@ function TurnOnCombatMods(rotationMode)
                 Dalamud.Log("[FATE] TurnOnCombatMods /rotation auto on")
             end
         elseif RotationPlugin == "BMR" then
-            yield("/bmrai setpresetname "..RotationAoePreset)
+            IPC.BossMod.SetActive(RotationAoePreset)
         elseif RotationPlugin == "VBM" then
-            yield("/vbm ar toggle "..RotationAoePreset)
+            IPC.BossMod.SetActive(RotationAoePreset)
         elseif RotationPlugin == "Wrath" then
             yield("/wrath auto on")
         end
@@ -2510,7 +2552,7 @@ function TurnOffCombatMods()
             yield("/rotation off")
             Dalamud.Log("[FATE] TurnOffCombatMods /rotation off")
         elseif RotationPlugin == "BMR" or RotationPlugin == "VBM" then
-            yield("/bmrai setpresetname nil")
+            IPC.BossMod.ClearActive()
         elseif RotationPlugin == "Wrath" then
             yield("/wrath auto off")
         end
@@ -2538,6 +2580,11 @@ function TurnOffCombatMods()
 end
 
 function HandleUnexpectedCombat()
+    if Svc.Condition[CharacterCondition.mounted] or Svc.Condition[CharacterCondition.flying] then
+        Dalamud.Log("[FATE] UnexpectedCombat: Dismounting due to combat")
+        Dismount()
+        return
+    end
     TurnOnCombatMods("manual")
 
     local nearestFate = Fates.GetNearestFate()
@@ -2830,7 +2877,18 @@ function Ready()
         State = CharacterState.gcTurnIn
         Dalamud.Log("[FATE] State Change: GCTurnIn")
     elseif Svc.ClientState.TerritoryType ~=  SelectedZone.zoneId then
-        TeleportTo(SelectedZone.aetheryteList[1].aetheryteName)
+        if not SelectedZone or not SelectedZone.aetheryteList or not SelectedZone.aetheryteList[1] then
+            yield("/echo [FATE] ERROR: No aetheryte found for selected zone. Cannot teleport. Stopping script.")
+            StopScript = true
+            return
+        end
+        local teleSuccess = TeleportTo(SelectedZone.aetheryteList[1].aetheryteName)
+        if teleSuccess == false then
+            yield("/echo [FATE] ERROR: Teleportation failed. Stopping script.")
+            StopScript = true
+            return
+        end
+        Dalamud.Log("[FATE] Teleport Back to Farming Zone")
         return
     elseif ShouldSummonChocobo and GetBuddyTimeRemaining() <= ResummonChocoboTimeLeft and
         (not shouldWaitForBonusBuff or Inventory.GetItemCount(4868) > 0) then
@@ -3132,18 +3190,24 @@ end
 
 function GrandCompanyTurnIn()
     if Inventory.GetFreeInventorySlots() <= InventorySlotsLeft then
-        local gcZoneIds = {
-            129, --Limsa Lominsa
-            132, --New Gridania
-            130 --"Ul'dah - Steps of Nald"
-        }
-        if Svc.ClientState.TerritoryType ~=  gcZoneIds[Player.GrandCompany] then
-            yield("/li gc")
-            yield("/wait 1")
-        elseif IPC.Deliveroo.IsTurnInRunning() then
-            return
+        if IPC.Lifestream and IPC.Lifestream.ExecuteCommand then
+            IPC.Lifestream.ExecuteCommand("gc")
+            Dalamud.Log("[FATE] Executed Lifestream teleport to GC.")
         else
-            yield("/deliveroo enable")
+            yield("/echo [FATE] Lifestream IPC not available! Cannot teleport to GC.")
+            return
+        end
+        yield("/wait 1")
+        while (IPC.Lifestream.IsBusy and IPC.Lifestream.IsBusy())
+            or (Svc.Condition[CharacterCondition.betweenAreas]) do
+            yield("/wait 0.5")
+        end
+        Dalamud.Log("[FATE] Lifestream complete, standing at GC NPC.")
+        if IPC.AutoRetainer and IPC.AutoRetainer.EnqueueInitiation then
+            IPC.AutoRetainer.EnqueueInitiation()
+            Dalamud.Log("[FATE] Called AutoRetainer.EnqueueInitiation() for GC handin.")
+        else
+            yield("/echo [FATE] AutoRetainer IPC not available! Cannot process GC turnin.")
         end
     else
         State = CharacterState.ready
@@ -3363,10 +3427,10 @@ end
     RSRAoeType                      = "Full"        --Options: Cleave/Full/Off
 
     -- For BMR/VBM/Wrath
-    RotationSingleTargetPreset      = ""            --Preset name with single target strategies (for forlorns). TURN OFF AUTOMATIC TARGETING FOR THIS PRESET
-    RotationAoePreset               = ""            --Preset with AOE + Buff strategies.
-    RotationHoldBuffPreset          = ""            --Preset to hold 2min burst when progress gets to seleted %
-    PercentageToHoldBuff            = 65            --Ideally you'll want to make full use of your buffs, higher than 70% will still waste a few seconds if progress is too fast.
+    RotationSingleTargetPreset      = Config.Get("Single Target Rotation") --Preset name with single target strategies (for forlorns). TURN OFF AUTOMATIC TARGETING FOR THIS PRESET
+    RotationAoePreset               = Config.Get("AoE Rotation")           --Preset with AOE + Buff strategies.
+    RotationHoldBuffPreset          = Config.Get("Hold Buff Rotation")     --Preset to hold 2min burst when progress gets to seleted %
+    PercentageToHoldBuff            = Config.Get("Percentage to Hold Buff")--Ideally youll want to make full use of your buffs, higher than 70% will still waste a few seconds if progress is too fast.
 
     IgnoreForlorns = false
 IgnoreBigForlornOnly = false
@@ -3538,7 +3602,7 @@ ShouldGrandCompanyTurnIn = Config.Get("Dump extra gear at GC?")         --should
 ReturnOnDeath = Config.Get("Return on death?")
 
 Echo = Config.Get("Echo logs")
-CompanionScriptMode                 = false         --Set to true if you are using the fate script with a companion script (such as the Atma Farmer)
+CompanionScriptMode                 = Config.Get("Companion Script Mode")
 
 -- Get user-configured plugin
 local dodgeConfig = Config.Get("Dodging Plugin")  -- Options: Any / BossModReborn / BossMod / None
