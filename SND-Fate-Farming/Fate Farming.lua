@@ -1047,7 +1047,7 @@ function GetZoneInstance()
     if InstancedContent and InstancedContent.PublicInstance then
         instanceId = InstancedContent.PublicInstance.InstanceId
         Dalamud.Log("[FATE] GetZoneInstance() via InstancedContent.PublicInstance.InstanceId: "..tostring(instanceId))
-    elseif Svc.ClientState and Svc.ClientState.LocalPlayer then
+    elseif Svc.ClientState and Svc.Objects.LocalPlayer then
         -- Try to get actual instance from client state
         if Svc.ClientState.TerritoryType then
             -- Use a more reliable method to detect instance
@@ -1115,8 +1115,8 @@ function MoveToTargetHitbox()
     end
 
     -- Calculate normalized direction vector
-    local norm = (Svc.Targets.Target.Position - Svc.ClientState.LocalPlayer.Position) / distance
-    local edgeOfHitbox = (norm*newDistance) + Svc.ClientState.LocalPlayer.Position
+    local norm = (Svc.Targets.Target.Position - Svc.Objects.LocalPlayer.Position) / distance
+    local edgeOfHitbox = (norm*newDistance) + Svc.Objects.LocalPlayer.Position
     local newPos = nil
     local halfExt = 10
     while newPos == nil do
@@ -1460,7 +1460,7 @@ function DistanceBetween(pos1, pos2)
 end
 
 function GetDistanceToPoint(vec3)
-    return DistanceBetween(Svc.ClientState.LocalPlayer.Position, vec3)
+    return DistanceBetween(Svc.Objects.LocalPlayer.Position, vec3)
 end
 
 function GetDistanceToTarget()
@@ -1481,7 +1481,7 @@ function GetDistanceToTargetFlat()
 end
 
 function GetDistanceToPointFlat(vec3)
-    return DistanceBetweenFlat(Svc.ClientState.LocalPlayer.Position, vec3)
+    return DistanceBetweenFlat(Svc.Objects.LocalPlayer.Position, vec3)
 end
 
 function DistanceBetweenFlat(pos1, pos2)
@@ -1951,7 +1951,7 @@ function FlyBackToAetheryte()
         return
     end
 
-    local closestAetheryte = GetClosestAetheryte(Svc.ClientState.LocalPlayer.Position, 0)
+    local closestAetheryte = GetClosestAetheryte(Svc.Objects.LocalPlayer.Position, 0)
     if closestAetheryte == nil then
         DownTimeWaitAtNearestAetheryte = false
         yield("/echo Could not find aetheryte in the area. Turning off feature to fly back to aetheryte.")
@@ -2028,7 +2028,7 @@ function Dismount()
 
             if Svc.Condition[CharacterCondition.flying] and GetDistanceToPoint(LastStuckCheckPosition) < 2 then
                 Dalamud.Log("[FATE] Unable to dismount here. Moving to another spot.")
-                local random = RandomAdjustCoordinates(Svc.ClientState.LocalPlayer.Position, 10)
+                local random = RandomAdjustCoordinates(Svc.Objects.LocalPlayer.Position, 10)
                 local nearestFloor = IPC.vnavmesh.PointOnFloor(random, true, 100)
                 if nearestFloor ~= nil then
                     IPC.vnavmesh.PathfindAndMoveTo(nearestFloor, Svc.Condition[CharacterCondition.flying] and SelectedZone.flying)
@@ -2037,7 +2037,7 @@ function Dismount()
             end
 
             LastStuckCheckTime = now
-            LastStuckCheckPosition = Svc.ClientState.LocalPlayer.Position
+            LastStuckCheckPosition = Svc.Objects.LocalPlayer.Position
         end
     elseif Svc.Condition[CharacterCondition.mounted] then
         yield('/ac dismount')
@@ -2185,12 +2185,12 @@ function MoveToFate()
                 yield("/vnav stop")
                 yield("/wait 1")
                 Dalamud.Log("[FATE] Antistuck")
-                local up10 = Svc.ClientState.LocalPlayer.Position + Vector3(0, 10, 0)
+                local up10 = Svc.Objects.LocalPlayer.Position + Vector3(0, 10, 0)
                 IPC.vnavmesh.PathfindAndMoveTo(up10, Svc.Condition[CharacterCondition.flying] and SelectedZone.flying) -- fly up 10 then try again
             end
             
             LastStuckCheckTime = now
-            LastStuckCheckPosition = Svc.ClientState.LocalPlayer.Position
+            LastStuckCheckPosition = Svc.Objects.LocalPlayer.Position
         end
         return
     end
@@ -2432,8 +2432,8 @@ function GetTargetHitboxRadius()
 end
 
 function GetPlayerHitboxRadius()
-    if Svc.ClientState.LocalPlayer ~= nil then
-        return Svc.ClientState.LocalPlayer.HitboxRadius
+    if Svc.Objects.LocalPlayer ~= nil then
+        return Svc.Objects.LocalPlayer.HitboxRadius
     else
         return 0
     end
@@ -3300,7 +3300,7 @@ function EorzeaTimeToUnixTime(eorzeaTime)
 end
 
 function HasStatusId(statusId)
-    local statusList = Svc.ClientState.LocalPlayer.StatusList
+    local statusList = Svc.Objects.LocalPlayer.StatusList
     if statusList == nil then
         return false
     end
@@ -3554,7 +3554,7 @@ LastWorldChangeTime = 0
 WorldChangeCooldown = 30 -- seconds to avoid immediate world-change loops
 ShouldExchangeBicolorGemstones = Config.Get("Exchange bicolor gemstones?")
 ItemToPurchase = Config.Get("Exchange bicolor gemstones for")
-if ItemToPurchase == "" or ItemToPurchase == nil then
+if ItemToPurchase == "" or ItemToPurchase == nil or ItemToPurchase == "None" or ItemToPurchase == "none" then
     ShouldExchangeBicolorGemstones = false
 end
 
@@ -3819,7 +3819,7 @@ while not StopScript do
     local currentTick = os.time()
     if currentTick - LastTrackerPingTime > 60 then
         LastTrackerPingTime = currentTick
-        local pc = Svc.ClientState.LocalPlayer
+        local pc = Svc.Objects.LocalPlayer
         if pc ~= nil then
             local playerName = pc.Name:GetText()
             local serverName = pc.HomeWorld.Value.Name:GetText()
