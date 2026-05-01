@@ -1,9 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.8
+version: 3.1.9
 description: >-
   Fate farming script with the following features:
+
+  - *[NEW - 3.1.9]* Fixed `LocalPlayer` API calls to be compatible with Dalamud API 14 update (switched from `Svc.ClientState.LocalPlayer` to `Svc.Objects.LocalPlayer`).
 
   - *[NEW - 3.1.8]* Integrated baanderson 3.1.6+ improvements (BossMod IPC presets, AutoRetainer for GC Turn-ins, Lifestream Fail-safes/Timeouts, Unexpected Combat safe-dismount).
 
@@ -184,6 +186,10 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.1.9    by: n0way02 (https://ko-fi.com/n0way02)
+                Fixed `LocalPlayer` API calls to be compatible with Dalamud API 14 update (switched from `Svc.ClientState.LocalPlayer` to `Svc.Objects.LocalPlayer`).
+    -> 3.1.8    by: n0way02 (https://ko-fi.com/n0way02)
+                Integrated baanderson 3.1.6+ improvements (BossMod IPC presets, AutoRetainer for GC Turn-ins, Lifestream Fail-safes/Timeouts, Unexpected Combat safe-dismount).
     -> 3.1.7    by: n0way02 (https://ko-fi.com/n0way02)
                 Fixed an issue in ChangeToNextWorld where the script wouldn't properly wait for Lifestream, skipping the first map of the Multi-Zone rotation.
     -> 3.1.6    by: n0way02 (https://ko-fi.com/n0way02)
