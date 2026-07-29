@@ -1486,24 +1486,10 @@ function SelectNextFate()
     }
 
     if SelectedZone ~= nil and (SelectedZone.zoneId == 1252 or SelectedZone.zoneId == 1346) then
-        local widgets = {"AreaInfo", "BozjaContentSearchResult", "FateProgress", "BozjaState", "EurekaState", "CrescentState"}
-        for _, addonName in ipairs(widgets) do
-            local addon = Addons.GetAddon(addonName)
-            if addon ~= nil and addon.Ready then
-                for i = 1, 100 do
-                    local txt = GetNodeText(addonName, i)
-                    if txt ~= nil and txt ~= "" then
-                        yield("/echo [DEBUG-UI] " .. addonName .. " Node " .. i .. ": " .. txt)
-                    end
-                end
-            end
-        end
-
         local ceFateObj = nil
         local currentTime = os.time(os.date("!*t"))
         for i = 0, fates.Count-1 do
             local f = fates[i]
-            yield("/echo [DEBUG] Active FATE name: " .. f.Name .. " | ID: " .. f.Id .. " | Progress: " .. f.Progress)
             if OccultCrescentCEs[f.Name] then
                 local dist = GetDistanceToPointFlat(f.Location)
                 local timeElapsed = 0
@@ -1515,7 +1501,6 @@ function SelectNextFate()
                 -- The registration phase lasts 2 minutes (120s). We check if timeElapsed is < 135s (2m 15s)
                 -- OR if the player is already inside the arena (dist <= f.Radius + 15).
                 local isPrepPhase = (f.Progress == 0 and timeElapsed < 135)
-                yield("/echo [DEBUG] CE MATCHED: " .. f.Name .. " | isPrep: " .. tostring(isPrepPhase) .. " | elapsed: " .. timeElapsed)
                 
                 if isPrepPhase or dist <= f.Radius + 15 then
                     ceFateObj = f
