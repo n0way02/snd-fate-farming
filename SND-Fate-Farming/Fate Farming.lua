@@ -1097,6 +1097,9 @@ function AttemptToTargetClosestFateEnemy()
     if closestTarget ~= nil then
         Svc.Targets.Target = closestTarget
     end
+    closestTarget = nil
+    obj = nil
+    collectgarbage()
 end
 
 -- Calculates a point on the line from 'start' to 'end',
@@ -2219,14 +2222,15 @@ function MoveToFate()
         nearestFloor = RandomAdjustCoordinates(CurrentFate.position, 10)
     end
 
-    if GetDistanceToPoint(nearestFloor) > 5 then
+    if GetDistanceToPointFlat(nearestFloor) > 5 then
         if not Svc.Condition[CharacterCondition.mounted] then
             State = CharacterState.mounting
             Dalamud.Log("[FATE] State Change: Mounting")
             return
         elseif not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
             if Player.CanFly and SelectedZone.flying then
-                yield("/vnav flyflag")
+                local elevatedPos = Vector3(nearestFloor.X, nearestFloor.Y + 20, nearestFloor.Z)
+                IPC.vnavmesh.PathfindAndMoveTo(elevatedPos, true)
             else
                 yield("/vnav moveflag")
             end
@@ -3773,6 +3777,7 @@ end)
 Dalamud.Log("[FATE Tracker] Script carregado e variáveis iniciais definidas!")
 SessionGemstonesFarmed = 0
 LastFrameGemstoneCount = Inventory.GetItemCount(26807)
+LastGcTime = 0
 
 while not StopScript do
     local nearestFate = Fates.GetNearestFate()
@@ -3823,6 +3828,10 @@ while not StopScript do
     end
 
     local currentTick = os.time()
+    if currentTick - LastGcTime > 5 then
+        LastGcTime = currentTick
+        collectgarbage()
+    end
     if currentTick - LastTrackerPingTime > 60 then
         LastTrackerPingTime = currentTick
         local pc = Svc.Objects.LocalPlayer
