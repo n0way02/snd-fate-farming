@@ -1,9 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.1.9
+version: 3.2.0
 description: >-
   Fate farming script with the following features:
+
+  - *[NEW - 3.2.0]* Added initial Critical Engagement (CE) support database and zone death handlers (development in progress) and optimized local Aetheryte interaction speed.
 
   - *[NEW - 3.1.9]* Fixed `LocalPlayer` API calls to be compatible with Dalamud API 14 update (switched from `Svc.ClientState.LocalPlayer` to `Svc.Objects.LocalPlayer`).
 
@@ -31,7 +33,7 @@ plugin_dependencies:
 - vnavmesh
 - TextAdvance
 - AutoDuty
-- BossMod
+- BossModReborn
 configs:
   Food:
     default: 
@@ -135,7 +137,7 @@ configs:
     type: string
     description: Options - Any/Wrath/RotationSolver/BossMod/BossModReborn. What Rotation Plugin to use.
   Dodging Plugin:
-    default: "BossMod"
+    default: "BossModReborn"
     type: string
     description: Options - Any/BossMod/BossModReborn/None. What Dodging Plugin to use. If your RotationPlugin is BossModReborn/BossMod, then this will be overriden
   BMR/VBM Specific settings:
@@ -186,6 +188,9 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.2.0    by: n0way02 (https://ko-fi.com/n0way02)
+                Added initial Critical Engagement (CE) support database and zone death handlers for Occult Crescent (development in progress).
+                Optimized local Aetheryte teleportation speeds (reduced loading/check delays).
     -> 3.1.9    by: n0way02 (https://ko-fi.com/n0way02)
                 Fixed `LocalPlayer` API calls to be compatible with Dalamud API 14 update (switched from `Svc.ClientState.LocalPlayer` to `Svc.Objects.LocalPlayer`).
     -> 3.1.8    by: n0way02 (https://ko-fi.com/n0way02)
@@ -1016,6 +1021,28 @@ FatesData = {
                 "Mascot March"
             }
         }
+    },
+    {
+        zoneName = "South Horn",
+        zoneId = 1252,
+        fatesList= {
+            collectionsFates= {},
+            otherNpcFates= {},
+            fatesWithContinuations = {},
+            blacklistedFates= {
+                "Serving Darkness"
+            }
+        }
+    },
+    {
+        zoneName = "North Horn",
+        zoneId = 1346,
+        fatesList= {
+            collectionsFates= {},
+            otherNpcFates= {},
+            fatesWithContinuations = {},
+            blacklistedFates= {}
+        }
     }
 }
 
@@ -1255,16 +1282,48 @@ function SelectNextZone()
 
     nextZone.zoneName = nextZone.zoneName
     nextZone.aetheryteList = {}
-    local aetherytes = GetAetherytesInZone(nextZone.zoneId)
-    for _, aetheryte in ipairs(aetherytes) do
-        local aetherytePos = Instances.Telepo:GetAetherytePosition(aetheryte.AetheryteId)
-        local aetheryteTable = {
-            aetheryteName = GetAetheryteName(aetheryte),
-            aetheryteId = aetheryte.AetheryteId,
-            position = aetherytePos,
-            aetheryteObj = aetheryte
-        }
-        table.insert(nextZone.aetheryteList, aetheryteTable)
+    if nextZone.zoneId == 1252 or nextZone.zoneId == 1346 then
+        local localCrystals = {}
+        if nextZone.zoneId == 1252 then
+            localCrystals = {
+                { aetheryteName = "Expedition Base Camp", position = Vector3(830.75, 72.98, -695.98) },
+                { aetheryteName = "The Wanderer's Heaven", position = Vector3(-173.02, 8.19, -611.14) },
+                { aetheryteName = "Crystalized Caverns", position = Vector3(-358.14, 101.98, -120.96) },
+                { aetheryteName = "Eldergrowth", position = Vector3(306.94, 105.18, 305.65) },
+                { aetheryteName = "Stonemarsh", position = Vector3(-384.12, 99.20, 281.42) }
+            }
+        elseif nextZone.zoneId == 1346 then
+            localCrystals = {
+                { aetheryteName = "North Horn Base Camp", position = Vector3(880.00, 259.74, 880.06) },
+                { aetheryteName = "The Crown Of Karnat", position = Vector3(451.68, 70.93, 528.84) },
+                { aetheryteName = "Sinking Sanctuary", position = Vector3(357.67, 45.77, -554.31) },
+                { aetheryteName = "Suspended Masonry", position = Vector3(-547.25, 68.00, 594.40) },
+                { aetheryteName = "Moldering Outskirts", position = Vector3(-388.57, 41.22, -440.52) },
+                { aetheryteName = "Unhallowed Hamlet", position = Vector3(-13.36, 3.14, -40.51) }
+            }
+        end
+        for _, crystal in ipairs(localCrystals) do
+            local aetheryteTable = {
+                aetheryteName = crystal.aetheryteName,
+                aetheryteId = 0,
+                position = crystal.position,
+                aetheryteObj = nil,
+                isLocalAethernet = true
+            }
+            table.insert(nextZone.aetheryteList, aetheryteTable)
+        end
+    else
+        local aetherytes = GetAetherytesInZone(nextZone.zoneId)
+        for _, aetheryte in ipairs(aetherytes) do
+            local aetherytePos = Instances.Telepo:GetAetherytePosition(aetheryte.AetheryteId)
+            local aetheryteTable = {
+                aetheryteName = GetAetheryteName(aetheryte),
+                aetheryteId = aetheryte.AetheryteId,
+                position = aetherytePos,
+                aetheryteObj = aetheryte
+            }
+            table.insert(nextZone.aetheryteList, aetheryteTable)
+        end
     end
 
     if nextZone.flying == nil then
@@ -1385,6 +1444,93 @@ function SelectNextFate()
     local fates = Fates.GetActiveFates()
     if fates == nil then
         return
+    end
+
+    local OccultCrescentCEs = {
+        ["Tiny Terror"] = true,
+        ["Forbidden Folios"] = true,
+        ["Accept No Imitators"] = true,
+        ["A Familiar Issue"] = true,
+        ["Imbalanced Diet"] = true,
+        ["Dark Artistry"] = true,
+        ["A Beast Unleashed"] = true,
+        ["Familiar Tactics"] = true,
+        ["Lost on The Wind"] = true,
+        ["Lost on the wind"] = true,
+        ["Lost on the Wind"] = true,
+        ["Ahead of The Competition"] = true,
+        ["Ahead of the Competition"] = true,
+        ["Quarried Away"] = true,
+        ["Appalling Behavior"] = true,
+        ["Double Trouble"] = true,
+        ["Doubled Trouble"] = true,
+        ["Calamity Bound"] = true,
+        ["The Unbridled"] = true,
+        ["The Black Regiment"] = true,
+        ["On the Hunt"] = true,
+        ["Cursed Concern"] = true,
+        ["Cursed Resurgence"] = true,
+        ["Company of Stone"] = true,
+        ["The Alabaster Blade"] = true,
+        ["Noise Complaint"] = true,
+        ["Scourge of the Mind"] = true,
+        ["Shark Attack"] = true,
+        ["Trial by Claw"] = true,
+        ["With Extreme Prejudice"] = true,
+        ["Eternal Watch"] = true,
+        ["Flame of Dusk"] = true,
+        ["From Times Bygone"] = true,
+        ["Crawling Death"] = true,
+        ["Many Mouths to Feed"] = true,
+        ["Web of Terror"] = true
+    }
+
+    if SelectedZone ~= nil and (SelectedZone.zoneId == 1252 or SelectedZone.zoneId == 1346) then
+        local widgets = {"AreaInfo", "BozjaContentSearchResult", "FateProgress", "BozjaState", "EurekaState", "CrescentState"}
+        for _, addonName in ipairs(widgets) do
+            local addon = Addons.GetAddon(addonName)
+            if addon ~= nil and addon.Ready then
+                for i = 1, 100 do
+                    local txt = GetNodeText(addonName, i)
+                    if txt ~= nil and txt ~= "" then
+                        yield("/echo [DEBUG-UI] " .. addonName .. " Node " .. i .. ": " .. txt)
+                    end
+                end
+            end
+        end
+
+        local ceFateObj = nil
+        local currentTime = os.time(os.date("!*t"))
+        for i = 0, fates.Count-1 do
+            local f = fates[i]
+            yield("/echo [DEBUG] Active FATE name: " .. f.Name .. " | ID: " .. f.Id .. " | Progress: " .. f.Progress)
+            if OccultCrescentCEs[f.Name] then
+                local dist = GetDistanceToPointFlat(f.Location)
+                local timeElapsed = 0
+                if f.StartTimeEpoch > 0 then
+                    timeElapsed = currentTime - f.StartTimeEpoch
+                end
+
+                -- CEs stay at 0% progress during the entire fight in some cases, so progress alone is not enough.
+                -- The registration phase lasts 2 minutes (120s). We check if timeElapsed is < 135s (2m 15s)
+                -- OR if the player is already inside the arena (dist <= f.Radius + 15).
+                local isPrepPhase = (f.Progress == 0 and timeElapsed < 135)
+                yield("/echo [DEBUG] CE MATCHED: " .. f.Name .. " | isPrep: " .. tostring(isPrepPhase) .. " | elapsed: " .. timeElapsed)
+                
+                if isPrepPhase or dist <= f.Radius + 15 then
+                    ceFateObj = f
+                    break
+                end
+            end
+        end
+        
+        if ceFateObj ~= nil then
+            Dalamud.Log("[FATE] Prioritizing Critical Engagement: " .. ceFateObj.Name)
+            if Echo == "All" then
+                yield("/echo [FATE] Prioritizing Critical Engagement: " .. ceFateObj.Name)
+            end
+            return BuildFateTable(ceFateObj)
+        end
     end
 
     local nextFate = nil
@@ -1605,14 +1751,82 @@ function GetClosestAetheryteToPoint(position, teleportTimePenalty)
 end
 
 function TeleportToClosestAetheryteToFate(nextFate)
-    local aetheryteForClosestFate = GetClosestAetheryteToPoint(nextFate.position, 200)
-    if aetheryteForClosestFate ~=nil then
-        local teleSuccess = TeleportTo(aetheryteForClosestFate.aetheryteName)
-        if teleSuccess then
-            return true
+    if SelectedZone.zoneId == 1252 or SelectedZone.zoneId == 1346 then
+        local closestCrystal = nil
+        local closestDist = math.maxinteger
+        for _, crystal in ipairs(SelectedZone.aetheryteList) do
+            local dist = DistanceBetween(crystal.position, nextFate.position)
+            if dist < closestDist then
+                closestDist = dist
+                closestCrystal = crystal
+            end
         end
+
+        if closestCrystal ~= nil then
+            local directDist = GetDistanceToPoint(nextFate.position)
+            if closestDist + 150 < directDist then
+                local playerPos = Svc.Objects.LocalPlayer.Position
+                local nearAnyCrystal = false
+                for _, crystal in ipairs(SelectedZone.aetheryteList) do
+                    if DistanceBetweenFlat(playerPos, crystal.position) <= 25 then
+                        nearAnyCrystal = true
+                        break
+                    end
+                end
+
+                if nearAnyCrystal then
+                    Dalamud.Log("[FATE] Already near a crystal, teleporting directly to: " .. closestCrystal.aetheryteName)
+                    local teleSuccess = TeleportTo(closestCrystal.aetheryteName)
+                    if teleSuccess then
+                        return true
+                    end
+                else
+                    Dalamud.Log("[FATE] Far from crystals. Casting /return to base camp first...")
+                    yield("/vnav stop")
+                    yield("/return")
+                    yield("/wait 1.5")
+                    if Addons.GetAddon("SelectYesno").Ready then
+                        yield("/callback SelectYesno true 0")
+                        yield("/wait 1")
+                    end
+                    
+                    local returnStart = os.clock()
+                    while Svc.Condition[CharacterCondition.casting] do
+                        yield("/wait 1")
+                        if os.clock() - returnStart > 30 then
+                            yield("/echo [FATE] Return failed: Timeout during cast.")
+                            return false
+                        end
+                    end
+                    yield("/wait 1")
+                    while Svc.Condition[CharacterCondition.betweenAreas] do
+                        yield("/wait 1")
+                        if os.clock() - returnStart > 60 then
+                            yield("/echo [FATE] Return failed: Timeout during loading.")
+                            return false
+                        end
+                    end
+                    yield("/wait 0.2")
+                    
+                    Dalamud.Log("[FATE] Arrived at base camp. Teleporting from base camp to: " .. closestCrystal.aetheryteName)
+                    local teleSuccess = TeleportTo(closestCrystal.aetheryteName)
+                    if teleSuccess then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    else
+        local aetheryteForClosestFate = GetClosestAetheryteToPoint(nextFate.position, 200)
+        if aetheryteForClosestFate ~=nil then
+            local teleSuccess = TeleportTo(aetheryteForClosestFate.aetheryteName)
+            if teleSuccess then
+                return true
+            end
+        end
+        return false
     end
-    return false
 end
 
 function AcceptTeleportOfferLocation(destinationAetheryte)
@@ -1654,24 +1868,104 @@ function TeleportTo(aetheryteName)
         end
     end
 
-    Dalamud.Log("[FATE] Executing Lifestream teleport command: /li tp "..aetheryteName)
-    yield("/li tp "..aetheryteName)
-    yield("/wait 1") -- wait for casting to begin
-    while Svc.Condition[CharacterCondition.casting] do
-        Dalamud.Log("[FATE] Casting teleport...")
-        yield("/wait 1")
-        if os.clock() - start > 60 then
-            yield("/echo [FATE] Teleport failed: Timeout during cast.")
-            return false
+    local isLocal = false
+    if SelectedZone ~= nil and SelectedZone.aetheryteList ~= nil then
+        for _, aetheryte in ipairs(SelectedZone.aetheryteList) do
+            if aetheryte.aetheryteName == aetheryteName and aetheryte.isLocalAethernet then
+                isLocal = true
+                break
+            end
         end
     end
-    yield("/wait 1") -- wait for that microsecond in between the cast finishing and the transition beginning
-    while Svc.Condition[CharacterCondition.betweenAreas] do
-        Dalamud.Log("[FATE] Teleporting...")
-        yield("/wait 1")
-        if os.clock() - start > 120 then
-            yield("/echo [FATE] Teleport failed: Timeout during zone transition.")
-            return false
+
+    if isLocal then
+        local playerPos = Svc.Objects.LocalPlayer.Position
+        local closestLocalCrystal = nil
+        local closestLocalDist = math.maxinteger
+        for _, crystal in ipairs(SelectedZone.aetheryteList) do
+            local dist = DistanceBetweenFlat(playerPos, crystal.position)
+            if dist < closestLocalDist then
+                closestLocalDist = dist
+                closestLocalCrystal = crystal
+            end
+        end
+
+        if closestLocalCrystal ~= nil and closestLocalDist > 3.5 then
+            Dalamud.Log("[FATE] Moving close to local crystal: " .. closestLocalCrystal.aetheryteName)
+            IPC.vnavmesh.PathfindAndMoveTo(closestLocalCrystal.position, Player.CanFly and SelectedZone.flying)
+            local moveStart = os.clock()
+            while GetDistanceToPointFlat(closestLocalCrystal.position) > 3.5 do
+                yield("/wait 0.5")
+                if os.clock() - moveStart > 30 then
+                    yield("/vnav stop")
+                    yield("/echo [FATE] Failed to move close to the crystal: Timeout.")
+                    return false
+                end
+            end
+            yield("/vnav stop")
+            yield("/wait 0.2")
+        end
+
+        -- Verify that the Aetheryte object is actually loaded in the client before interacting
+        local aetheryteLoaded = false
+        local scanStart = os.clock()
+        while not aetheryteLoaded do
+            for i = 0, Svc.Objects.Length - 1 do
+                local obj = Svc.Objects[i]
+                if obj ~= nil and obj.ObjectKind == 5 then -- ObjectKind 5 is Aetheryte
+                    if GetDistanceToPointFlat(obj.Position) < 15 then
+                        aetheryteLoaded = true
+                        break
+                    end
+                end
+            end
+            if aetheryteLoaded then break end
+            yield("/wait 0.1")
+            if os.clock() - scanStart > 10 then
+                Dalamud.Log("[FATE] Warning: Local Aetheryte object not found in actor list after 10s. Proceeding anyway...")
+                break
+            end
+        end
+
+        Dalamud.Log("[FATE] Executing Lifestream local aethernet command: /li "..aetheryteName)
+        yield("/li "..aetheryteName)
+        yield("/wait 0.3")
+        
+        -- Retry fail-safe if Lifestream didn't register the command
+        if not IPC.Lifestream.IsBusy() then
+            Dalamud.Log("[FATE] Lifestream not busy after /li command. Retrying local teleport...")
+            yield("/li "..aetheryteName)
+            yield("/wait 0.3")
+        end
+
+        while IPC.Lifestream.IsBusy() do
+            Dalamud.Log("[FATE] Local teleport in progress, waiting...")
+            yield("/wait 1")
+            if os.clock() - start > 45 then
+                yield("/echo [FATE] Local teleport failed: Timeout.")
+                return false
+            end
+        end
+    else
+        Dalamud.Log("[FATE] Executing Lifestream teleport command: /li tp "..aetheryteName)
+        yield("/li tp "..aetheryteName)
+        yield("/wait 1") -- wait for casting to begin
+        while Svc.Condition[CharacterCondition.casting] do
+            Dalamud.Log("[FATE] Casting teleport...")
+            yield("/wait 1")
+            if os.clock() - start > 60 then
+                yield("/echo [FATE] Teleport failed: Timeout during cast.")
+                return false
+            end
+        end
+        yield("/wait 1") -- wait for that microsecond in between the cast finishing and the transition beginning
+        while Svc.Condition[CharacterCondition.betweenAreas] do
+            Dalamud.Log("[FATE] Teleporting...")
+            yield("/wait 1")
+            if os.clock() - start > 120 then
+                yield("/echo [FATE] Teleport failed: Timeout during zone transition.")
+                return false
+            end
         end
     end
     yield("/wait 1")
@@ -3040,7 +3334,64 @@ function Ready()
 end
 
 
+function IsRaiseOffer(text)
+    if text == nil then return false end
+    local lowerText = string.lower(text)
+    return lowerText:find("resurrect") ~= nil 
+        or lowerText:find("raise") ~= nil 
+        or lowerText:find("resurrection") ~= nil
+end
+
+DeadInCE = DeadInCE or false
+
 function HandleDeath()
+    if CurrentFate ~= nil then
+        local OccultCrescentCEs = {
+            ["Tiny Terror"] = true,
+            ["Forbidden Folios"] = true,
+            ["Accept No Imitators"] = true,
+            ["A Familiar Issue"] = true,
+            ["Imbalanced Diet"] = true,
+            ["Dark Artistry"] = true,
+            ["A Beast Unleashed"] = true,
+            ["Familiar Tactics"] = true,
+            ["Lost on The Wind"] = true,
+            ["Lost on the wind"] = true,
+            ["Lost on the Wind"] = true,
+            ["Ahead of The Competition"] = true,
+            ["Ahead of the Competition"] = true,
+            ["Quarried Away"] = true,
+            ["Appalling Behavior"] = true,
+            ["Double Trouble"] = true,
+            ["Doubled Trouble"] = true,
+            ["Calamity Bound"] = true,
+            ["The Unbridled"] = true,
+            ["The Black Regiment"] = true,
+            ["On the Hunt"] = true,
+            ["Cursed Concern"] = true,
+            ["Cursed Resurgence"] = true,
+            ["Company of Stone"] = true,
+            ["The Alabaster Blade"] = true,
+            ["Noise Complaint"] = true,
+            ["Scourge of the Mind"] = true,
+            ["Shark Attack"] = true,
+            ["Trial by Claw"] = true,
+            ["With Extreme Prejudice"] = true,
+            ["Eternal Watch"] = true,
+            ["Flame of Dusk"] = true,
+            ["From Times Bygone"] = true,
+            ["Crawling Death"] = true,
+            ["Many Mouths to Feed"] = true,
+            ["Web of Terror"] = true
+        }
+        if OccultCrescentCEs[CurrentFate.fateName] then
+            DeadInCE = true
+            Dalamud.Log("[FATE] Player died inside a CE FATE: " .. CurrentFate.fateName .. ". Will wait for raise.")
+        else
+            DeadInCE = false
+        end
+    end
+
     CurrentFate = nil
 
     if CombatModsOn then
@@ -3052,7 +3403,17 @@ function HandleDeath()
     end
 
     if Svc.Condition[CharacterCondition.dead] then --Condition Dead
-        if ReturnOnDeath then
+        local isYesNoReady = Addons.GetAddon("SelectYesno").Ready
+        local yesNoText = ""
+        if isYesNoReady then
+            yesNoText = GetNodeText("SelectYesno", 1, 2) or ""
+        end
+
+        if isYesNoReady and IsRaiseOffer(yesNoText) then
+            Dalamud.Log("[FATE] Raise offer detected, accepting...")
+            yield("/callback SelectYesno true 0")
+            yield("/wait 1.0")
+        elseif ReturnOnDeath and not DeadInCE then
             if Echo and not DeathAnnouncementLock then
                 DeathAnnouncementLock = true
                 if Echo == "All" then
@@ -3060,7 +3421,7 @@ function HandleDeath()
                 end
             end
 
-            if Addons.GetAddon("SelectYesno").Ready then --rez addon yes
+            if isYesNoReady then --rez addon yes
                 yield("/callback SelectYesno true 0")
                 yield("/wait 0.1")
             end
@@ -3077,6 +3438,7 @@ function HandleDeath()
         State = CharacterState.ready
         Dalamud.Log("[FATE] State Change: Ready")
         DeathAnnouncementLock = false
+        DeadInCE = false
     end
 end
 
@@ -3418,19 +3780,29 @@ if RotationPlugin == "Any" then
         RotationPlugin = "Wrath"
     elseif HasPlugin("RotationSolver") then
         RotationPlugin = "RSR"
-    elseif HasPlugin("BossModReborn") then
+    elseif HasPlugin("BossModReborn") or HasPlugin("BossMod") then
         RotationPlugin = "BMR"
-    elseif HasPlugin("BossMod") then
-        RotationPlugin = "VBM"
+    else
+        StopScript = true
     end
-elseif RotationPlugin == "Wrath" and HasPlugin("Wrath") then
-    RotationPlugin = "Wrath"
-elseif RotationPlugin == "RotationSolver" and HasPlugin("RotationSolver") then
-    RotationPlugin = "RSR"
-elseif RotationPlugin == "BossModReborn" and HasPlugin("BossModReborn") then
-    RotationPlugin = "BMR"
-elseif RotationPlugin == "BossMod" and HasPlugin("BossMod") then
-    RotationPlugin = "VBM"
+elseif RotationPlugin == "Wrath" then
+    if HasPlugin("Wrath") then
+        RotationPlugin = "Wrath"
+    else
+        StopScript = true
+    end
+elseif RotationPlugin == "RotationSolver" then
+    if HasPlugin("RotationSolver") then
+        RotationPlugin = "RSR"
+    else
+        StopScript = true
+    end
+elseif RotationPlugin == "BossModReborn" or RotationPlugin == "BossMod" then
+    if HasPlugin("BossModReborn") or HasPlugin("BossMod") then
+        RotationPlugin = "BMR"
+    else
+        StopScript = true
+    end
 else
     StopScript = true
 end
@@ -3617,28 +3989,26 @@ CompanionScriptMode                 = Config.Get("Companion Script Mode")
 -- Get user-configured plugin
 local dodgeConfig = Config.Get("Dodging Plugin")  -- Options: Any / BossModReborn / BossMod / None
 
--- Resolve "any" or specific plugin if available
-if dodgeConfig == "Any" then
-    if HasPlugin("BossModReborn") then
+-- Resolve specific plugin with fallbacks
+if dodgeConfig == "BossModReborn" or dodgeConfig == "BossMod" then
+    if HasPlugin("BossModReborn") or HasPlugin("BossMod") then
         DodgingPlugin = "BMR"
-    elseif HasPlugin("BossMod") then
-        DodgingPlugin = "VBM"
     else
         DodgingPlugin = "None"
     end
-elseif dodgeConfig == "BossModReborn" and HasPlugin("BossModReborn") then
-    DodgingPlugin = "BMR"
-elseif dodgeConfig == "BossMod" and HasPlugin("BossMod") then
-    DodgingPlugin = "VBM"
+elseif dodgeConfig == "Any" then
+    if HasPlugin("BossModReborn") or HasPlugin("BossMod") then
+        DodgingPlugin = "BMR"
+    else
+        DodgingPlugin = "None"
+    end
 else
     DodgingPlugin = "None"
 end
 
 -- Override if RotationPlugin already uses a dodging plugin
-if RotationPlugin == "BMR" then
+if RotationPlugin == "BMR" or RotationPlugin == "VBM" then
     DodgingPlugin = "BMR"
-elseif RotationPlugin == "VBM" then
-    DodgingPlugin = "VBM"
 end
 
 -- Final warning if no dodging plugin is active
@@ -3687,6 +4057,11 @@ if SelectedZone.zoneName ~= "" and Echo == "All" then
     yield("/echo [FATE] Farming "..SelectedZone.zoneName)
 end
 Dalamud.Log("[FATE] Farming Start for "..SelectedZone.zoneName)
+
+if SelectedZone.zoneId == 1252 or SelectedZone.zoneId == 1346 then
+    ShouldSummonChocobo = false
+    Dalamud.Log("[FATE] Special field zone detected (South Horn / North Horn). Disabling companion chocobo summoning.")
+end
 
 -- Check if required plugins are available
 if not HasPlugin("Lifestream") then
