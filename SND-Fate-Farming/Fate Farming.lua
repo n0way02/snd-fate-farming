@@ -4152,6 +4152,7 @@ SessionFatesCompleted = 0
 ScriptStartTime = os.time()
 LastFrameGemstoneCount = Inventory.GetItemCount(26807)
 LastGcTime = 0
+LastGpsPingTime = 0
 yield("/echo [FATE] --------------------------------------------------")
 yield("/echo [FATE] >>> FATE FRENZY PLUGIN IS OUT! <<<")
 yield("/echo [FATE] Check out the native, crash-free C# plugin counterpart:")
@@ -4217,6 +4218,45 @@ while not StopScript do
     if currentTick - LastGcTime > 5 then
         LastGcTime = currentTick
         collectgarbage()
+    end
+    if GlobalTrackerClient ~= nil and StringContent ~= nil and Encoding ~= nil and (currentTick - (LastGpsPingTime or 0) >= 2) then
+        LastGpsPingTime = currentTick
+        pcall(function()
+            local pcGps = Svc.Objects.LocalPlayer
+            if pcGps ~= nil and not Svc.Condition[CharacterCondition.betweenAreas] then
+                local pName = pcGps.Name:GetText()
+                local sName = pcGps.HomeWorld.Value.Name:GetText()
+                local cServer = sName
+                pcall(function() cServer = pcGps.CurrentWorld.Value.Name:GetText() end)
+                local cMap = "Unknown"
+                if SelectedZone ~= nil and SelectedZone.zoneName ~= nil and SelectedZone.zoneName ~= "" then
+                    cMap = SelectedZone.zoneName
+                end
+                local terrId = tonumber(Svc.ClientState.TerritoryType) or 0
+                local pos = pcGps.Position
+                local px = tonumber(pos and pos.X) or 0
+                local py = tonumber(pos and pos.Y) or 0
+                local pz = tonumber(pos and pos.Z) or 0
+                local rot = tonumber(pcGps.Rotation) or 0
+                local mountedStr = Svc.Condition[CharacterCondition.mounted] and "true" or "false"
+                local fatesJson = "[]"
+                if CurrentFate ~= nil and CurrentFate.fateObject ~= nil then
+                    local fName = string.gsub(tostring(CurrentFate.fateName or "FATE"), '"', '\\"')
+                    local fProg = tonumber(CurrentFate.fateObject.Progress) or 0
+                    local fPos = CurrentFate.fateObject.Position
+                    local fx = tonumber(fPos and fPos.X) or px
+                    local fz = tonumber(fPos and fPos.Z) or pz
+                    fatesJson = string.format('[{"id":%d,"name":"%s","progress":%d,"x":%.1f,"z":%.1f,"radius":35,"isTarget":true}]', tonumber(CurrentFate.fateId) or 0, fName, fProg, fx, fz)
+                end
+                local safeMapGps = string.gsub(cMap, '"', '\\"')
+                local gpsBody = string.format(
+                    '{"playerName":"%s","serverName":"%s","currentServer":"%s","source":"script","isPlugin":false,"currentMap":"%s","territoryId":%d,"posX":%.2f,"posY":%.2f,"posZ":%.2f,"rotation":%.3f,"isMounted":%s,"phase":"Grinding","state":"Active","activeFates":%s}',
+                    pName, sName, cServer, safeMapGps, terrId, px, py, pz, rot, mountedStr, fatesJson
+                )
+                local sc = StringContent(gpsBody, Encoding.UTF8, "application/json")
+                GlobalTrackerClient:PostAsync("https://fatefrenzytracker.discloud.app/api/gps", sc)
+            end
+        end)
     end
     if currentTick - LastTrackerPingTime > 45 then
         local pc = Svc.Objects.LocalPlayer
