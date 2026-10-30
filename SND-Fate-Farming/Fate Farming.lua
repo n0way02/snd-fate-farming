@@ -5,6 +5,8 @@ version: 3.2.4
 description: >-
   Fate farming script with the following features:
 
+  - *[NEW - 3.2.5]* Fixed real-time GPS & Map direct-to-RAM streaming (/api/gps) with curl.exe fallback, live TerritoryType zone detection, and full active FATEs list.
+
   - *[NEW - 3.2.4]* Added real-time direct-to-RAM GPS map & active FATE coordinate streaming to FateFrenzy Web Tracker.
 
   - *[NEW - 3.2.3]* Updated FateFrenzy Web Tracker telemetry (full 54-item Bicolor Gemstone & Voucher inventory sync, accurate gemstone delta tracking across teleports, and direct Discloud endpoint integration).
@@ -4481,3 +4483,5 @@ if Player.Job.Id ~= MainClass.Id then
     yield("/gs change "..MainClass.Name)
 end
 --#endregion Main
+
+													
