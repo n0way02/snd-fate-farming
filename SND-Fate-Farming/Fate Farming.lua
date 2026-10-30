@@ -1,9 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: n0way (fork from pot0to script)
-version: 3.2.3
+version: 3.2.4
 description: >-
   Fate farming script with the following features:
+
+  - *[NEW - 3.2.4]* Added real-time direct-to-RAM GPS map & active FATE coordinate streaming to FateFrenzy Web Tracker.
 
   - *[NEW - 3.2.3]* Updated FateFrenzy Web Tracker telemetry (full 54-item Bicolor Gemstone & Voucher inventory sync, accurate gemstone delta tracking across teleports, and direct Discloud endpoint integration).
 
@@ -194,6 +196,8 @@ configs:
 *                                  Changelog                                   *
 ********************************************************************************
 
+    -> 3.2.4    by: n0way02 (https://ko-fi.com/n0way02)
+                Added real-time direct-to-RAM GPS map & active FATE coordinate streaming (/api/gps).
     -> 3.2.3    by: n0way02 (https://ko-fi.com/n0way02)
                 Updated FateFrenzy Web Tracker telemetry: full 54-item Bicolor Gemstone & Voucher inventory sync, fixed gemstone delta calculation on zone transitions, and updated endpoint to fatefrenzytracker.discloud.app.
     -> 3.2.2    by: n0way02 (https://ko-fi.com/n0way02)
@@ -4370,7 +4374,7 @@ while not StopScript do
 
             if playerName and serverName then
                 local jsonBody = string.format(
-                    '{"playerName":"%s","source":"script","isPlugin":false,"clientType":"FateFarming.Lua","version":"3.2.3","serverName":"%s","currentServer":"%s","currentMap":"%s","classJob":"%s","level":%d,"phase":"Grinding","state":"Active","walletGemstones":%d,"gemstonesFarmed":%d,"fatesCompleted":%d,"fatesPerHour":%.1f,"expEarned":0,"expPerHour":0,"levelsGained":0,"sessionDurationMs":%d,"selectedTradeItem":"%s","tradeItems":%s}',
+                    '{"playerName":"%s","source":"script","isPlugin":false,"clientType":"FateFarming.Lua","version":"3.2.4","serverName":"%s","currentServer":"%s","currentMap":"%s","classJob":"%s","level":%d,"phase":"Grinding","state":"Active","walletGemstones":%d,"gemstonesFarmed":%d,"fatesCompleted":%d,"fatesPerHour":%.1f,"expEarned":0,"expPerHour":0,"levelsGained":0,"sessionDurationMs":%d,"selectedTradeItem":"%s","tradeItems":%s}',
                     playerName, serverName, currentServer, safeMap, jobAbbr, charLevel, walletGems, gemsFarmed, fatesDone, fatesPerHour, sessionDurMs, safeTrade, tradeItemsJson
                 )
                 -- Try C# HttpClient first, fallback to powershell
